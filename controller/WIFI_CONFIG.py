@@ -1,0 +1,2 @@
+SSID = "oceanstar"
+PASSWORD = "#starshyn"

@@ -1,2 +1,0 @@
-SSID = "oceanstar"
-PASSWORD = "#starshyn"
