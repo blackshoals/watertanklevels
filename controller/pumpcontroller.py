@@ -1,4 +1,4 @@
-#Pump Controller V3
+#Pump Controller V1
 
 from a02yyuw import A02YYUW
 import time
@@ -10,8 +10,8 @@ from WIFI_CONFIG import SSID, PASSWORD
 
 #if the machine is powered off and on check for an updated software version
 if (machine.reset_cause() == 1):
-       firmware_url = "https://github.com/blackshoals/watertanklevels/"
-       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontrol.py")
+       firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
+       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
        ota_updater.download_and_install_update_if_available()
 else:
        pass
