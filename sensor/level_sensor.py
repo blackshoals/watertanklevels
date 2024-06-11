@@ -1,20 +1,12 @@
-#Water Tank Sensor V4
+#Water Tank Sensor V5
 
-from a02yyuw import A02YYUW
 import utime
 import network
 import espnow
 import machine
+from a02yyuw import A02YYUW
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
-
-#if the machine is powered off and on check for an updated software version
-if (machine.reset_cause() == 1):
-       firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
-       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
-       ota_updater.download_and_install_update_if_available()
-else:
-       pass
  
 reboot_delay = 5 #seconds
 cycle_time = 15 #seconds
@@ -32,16 +24,19 @@ def reboot(delay = reboot_delay):
 
 def read_tank_percentage():
     sensor = A02YYUW()
-    while True:
-        distance = sensor.read()
-        utime.sleep(0.5)
-        if distance is not None: #take readings until one is found
-            distance = round(distance/10)          # tank measurement in cm
-            tank_percentage = round((1-(distance-tank_offset)/tank_height) *100)
-            return tank_percentage
-            break
-        else:
-            pass
+    retries = 10
+    while retries > 0
+        try:
+            distance = sensor.read()
+            if distance is not None:
+                distance = round(distance / 10)
+                tank_percentage = round((1 - (distance - TANK_OFFSET) / TANK_HEIGHT) * 100)
+                return tank_percentage
+        except Exception as e:
+            print('Error reading sensor:', e)
+        retries -= 1
+        utime.sleep_ms(50)
+    return None
         
 def battery_voltage(): # Battery Voltage
 # Voltage Divider R1 = 6K and R2 = 22k
@@ -51,46 +46,49 @@ def battery_voltage(): # Battery Voltage
     battery_voltage = raw * calib_factor / 1024
     return battery_voltage
 
+def initialize_espnow():
+       try:  
+           #establish ESP-NOW
+           print('Initializing...')
+           sta = network.WLAN(network.STA_IF) #set station mode
+           sta.active(True)
+         
+           e = espnow.ESPNow() # Enable ESP-NOW
+           e.active(True)
+           e.config(timeout_ms = (cycle_time * 1000))
+           e.add_peer(controller_mac)            # add controller as a receiver
+           return e
+       except Exception as e:
+        print('Error initializing ESP-NOW:', e)
+        return None
 
-# establish ESP-NOW
-try:
-    print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
-    utime.sleep(5)
-    
-    #establish ESP-NOW
-    print('Initializing...')
-    ap = network.WLAN(network.AP_IF) #turn off the AP
-    ap.active(False)
-    sta = network.WLAN(network.STA_IF) #set station mode
-    sta.active(True)
-  
-    e = espnow.ESPNow() # Enable ESP-NOW
-    e.active(True)
-    e.config(timeout_ms = (cycle_time * 1000))
-    e.add_peer(controller_mac)            # add controller as a reeiver
-    
-except KeyboardInterrupt as err:
-    raise err #  use Ctrl-C to exit to micropython repl
-except Exception as err:
-    print ('Error initialising espnow:', err)
-    reboot()
+def main():
+       try:
+              print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
+              utime.sleep(5)
+              #if the machine is powered off and on check for an updated software version
+              if (machine.reset_cause() == 1):
+                     firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
+                     ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
+                     ota_updater.download_and_install_update_if_available()
+                     
+              esp_now = initialize_espnow()
+              if esp_now is None:
+                   reboot()
+                                   
+              while True:
+                     upper_tank_percentage = read_tank_percentage() #water level sensor
+                     if upper_tank_percentage is not None:
+                            esp_now.send(CONTROLLER_MAC, str(tank_percentage), False)
+                            print("Sent :", upper_tank_percentage, "%")
+                                 
+              machine.lightsleep(cycle_time * 1000)
+       
+       except KeyboardInterrupt as err:
+           raise err #  use Ctrl-C to exit to micropython repl
+       except Exception as err:
+           print ('Error during execution:', err)
+           reboot()
 
-try:
-    while True:
-        upper_tank_percentage = read_tank_percentage() #water level sensor
-        utime.sleep(0.5)
-        if upper_tank_percentage is not None:
-            sta.active(True)
-            e.send(controller_mac,str(upper_tank_percentage), False)     # send commands to the pump controller
-            print("Sent :", upper_tank_percentage, "%")
-            sta.active(False)
-            
-
-        machine.lightsleep(cycle_time * 1000)
-
-except KeyboardInterrupt as err:
-    raise err #  use Ctrl-C to exit to micropython repl
-except Exception as err:
-    print ('Error during execution:', err)
-    reboot()
-
+if __name__ == "__main__":
+    main()
