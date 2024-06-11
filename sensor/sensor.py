@@ -5,7 +5,17 @@ import utime
 import network
 import espnow
 import machine
+from ota import OTAUpdater
+from WIFI_CONFIG import SSID, PASSWORD
 
+#if the machine is powered off and on check for an updated software version
+if (machine.reset_cause() == 1):
+       firmware_url = "https://github.com/blackshoals/watertanklevels/sensor/"
+       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "sensor.py")
+       ota_updater.download_and_install_update_if_available()
+else:
+       pass
+ 
 reboot_delay = 5 #seconds
 cycle_time = 15 #seconds
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0' # MAC address of peer1's wifi interface
@@ -47,8 +57,13 @@ try:
     print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
     utime.sleep(5)
     
-    sta = network.WLAN(network.STA_IF)    # Enable station mode for ESP
-
+    #establish ESP-NOW
+    print('Initializing...')
+    ap = network.WLAN(network.AP_IF) #turn off the AP
+    ap.active(False)
+    sta = network.WLAN(network.STA_IF) #set station mode
+    sta.active(True)
+  
     e = espnow.ESPNow() # Enable ESP-NOW
     e.active(True)
     e.config(timeout_ms = (cycle_time * 1000))
