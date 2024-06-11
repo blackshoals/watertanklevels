@@ -3,7 +3,7 @@ import urequests
 import os
 import json
 import machine
-from time import sleep
+import time
 
 class OTAUpdater:
     """ This class handles OTA updates. It connects to the Wi-Fi, checks for updates, downloads and installs them."""
@@ -40,11 +40,22 @@ class OTAUpdater:
         sta_if = network.WLAN(network.STA_IF)
         sta_if.active(True)
         sta_if.connect(self.ssid, self.password)
-        while not sta_if.isconnected():
-            print('.', end="")
-            sleep(0.25)
-        print(f'Connected to WiFi, IP is: {sta_if.ifconfig()[0]}')
         
+        start_time = time.ticks_ms()
+               
+        while not sta_if.isconnected() and time.ticks_diff(time.ticks_ms(), start_time) < 20000:
+            print('.', end="")
+            time.sleep(0.25)
+ 
+        if sta_if.isconnected():
+            print(f'\nConnected to WiFi, IP is: {sta_if.ifconfig()[0]}')
+            return True
+        else:
+            print('\nFailed to connect to WiFi within 20 seconds.')
+            sta_if.active(False)
+            return False
+                
+                    
     def fetch_latest_code(self)->bool:
         """ Fetch the latest code from the repo, returns False if not found."""
         
@@ -98,25 +109,28 @@ class OTAUpdater:
         
         # Connect to Wi-Fi
         self.connect_wifi()
-
-        print(f'Checking for latest version... on {self.version_url}')
-        response = urequests.get(self.version_url)
         
-        data = json.loads(response.text)
-        
-        print(f"data is: {data}, url is: {self.version_url}")
-        print(f"data version is: {data['version']}")
-        # Turn list to dict using dictionary comprehension
-#         my_dict = {data[i]: data[i + 1] for i in range(0, len(data), 2)}
-        
-        self.latest_version = int(data['version'])
-        print(f'latest version is: {self.latest_version}')
-        
-        # compare versions
-        newer_version_available = True if self.current_version < self.latest_version else False
-        
-        print(f'Newer version available: {newer_version_available}')    
-        return newer_version_available
+        if self.connect_wifi():
+            print(f'Checking for latest version... on {self.version_url}')
+            response = urequests.get(self.version_url)
+            
+            data = json.loads(response.text)
+            
+            print(f"data is: {data}, url is: {self.version_url}")
+            print(f"data version is: {data['version']}")
+            
+            self.latest_version = int(data['version'])
+            print(f'latest version is: {self.latest_version}')
+            
+            # compare versions
+            newer_version_available = True if self.current_version < self.latest_version else False
+            
+            print(f'Newer version available: {newer_version_available}')    
+            return newer_version_available
+        else:
+            print("Ending connection attempts")
+            newer_version_available = False
+            return newer_version_available
     
     def download_and_install_update_if_available(self):
         """ Check for updates, download and install them."""
