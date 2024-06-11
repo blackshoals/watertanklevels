@@ -5,8 +5,10 @@ import time
 import network
 import espnow
 import machine
+import bmp280
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
+
 
 #if the machine is powered off and on check for an updated software version
 if (machine.reset_cause() == 1):
@@ -32,8 +34,10 @@ upper_tank_receive_timestamp = time.ticks_ms()
 pump_cycle_limiter = time.ticks_ms()
 pump_cycle_count = 0
        
-# ESP32 - Pin assignment for BME280
-#i2c = I2C(scl=Pin(22), sda=Pin(21), freq=10000)
+# ESP32 - Pin assignment for BMP280
+# bus = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21), freq=10000)
+# bmp = BMP280(bus)
+# bmp.use_case(BMP280_CASE_WEATHER)
 
 # Water pump Relay
 #pin_relay = Pin(32, mode=Pin.OUT)
@@ -123,7 +127,7 @@ try:
 #                # limit pumping to 4 cycles per 24 hours
 #   
 #             print("Checking to start pump")
-#             if bme.temperature >=5: #check the BME280 to make sure it is warm enough to start the pump
+#             if bmp.temperature >=5: #check the BMP280 to make sure it is warm enough to start the pump
 #                 print(" Temperature is above 5 degrees ")
 #                 if ((int(upper_tank_percentage[1:]) < 80 and int(upper_tank_percentage[1:]) != 0)
 #                 and (int(lower_tank_percentage[1:]) > 40)):
