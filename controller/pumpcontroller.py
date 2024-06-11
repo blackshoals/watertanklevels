@@ -1,4 +1,4 @@
-#Pump Controller V1.1
+#Pump Controller V2
 
 from a02yyuw import A02YYUW
 import time
