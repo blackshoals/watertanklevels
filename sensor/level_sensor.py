@@ -58,8 +58,8 @@ def initialize_espnow():
            e.config(timeout_ms = (cycle_time * 1000))
            e.add_peer(controller_mac)            # add controller as a receiver
            return e
-       except Exception as e:
-        print('Error initializing ESP-NOW:', e)
+       except Exception as err:
+        print('Error initializing ESP-NOW:', err)
         return None
 
 
