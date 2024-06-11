@@ -1,4 +1,4 @@
-#Water Tank Sensor
+#Water Tank Sensor V1
 
 from a02yyuw import A02YYUW
 import utime
