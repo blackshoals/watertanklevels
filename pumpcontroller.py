@@ -1,6 +1,4 @@
-#This is a test of the OTA module
-
-#Pump Controller
+#Pump Controller V3
 
 from a02yyuw import A02YYUW
 import time
@@ -10,9 +8,13 @@ import machine
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
 
-firmware_url = "https://github.com/blackshoals/watertanklevels/"
-ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontrol.py")
-ota_updater.download_and_install_update_if_available()
+#if the machine is powered off and on check for an updated software version
+if (machine.reset_cause() == 1):
+       firmware_url = "https://github.com/blackshoals/watertanklevels/"
+       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontrol.py")
+       ota_updater.download_and_install_update_if_available()
+else:
+       pass
 
 cycle_time = 65  # seconds
 sensor_send_interval = 5  # seconds
@@ -74,7 +76,9 @@ try:
 
     #establish ESP-NOW
     print('Initializing...')
-    sta = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF) #turn off the AP
+    ap.active(False)
+    sta = network.WLAN(network.STA_IF) #set station mode
     sta.active(True)
 
     e = espnow.ESPNow()
