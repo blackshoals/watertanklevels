@@ -25,12 +25,12 @@ def reboot(delay = reboot_delay):
 def read_tank_percentage():
     sensor = A02YYUW()
     retries = 10
-    while retries > 0
+    while retries > 0:
         try:
             distance = sensor.read()
             if distance is not None:
                 distance = round(distance / 10)
-                tank_percentage = round((1 - (distance - TANK_OFFSET) / TANK_HEIGHT) * 100)
+                tank_percentage = round((1 - (distance - tank_offset) / tank_height) * 100)
                 return tank_percentage
         except Exception as e:
             print('Error reading sensor:', e)
@@ -62,33 +62,41 @@ def initialize_espnow():
         print('Error initializing ESP-NOW:', e)
         return None
 
-def main():
-       try:
-              print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
-              utime.sleep(5)
-              #if the machine is powered off and on check for an updated software version
-              if (machine.reset_cause() == 1):
-                     firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
-                     ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
-                     ota_updater.download_and_install_update_if_available()
-                     
-              esp_now = initialize_espnow()
-              if esp_now is None:
-                   reboot()
-                                   
-              while True:
-                     upper_tank_percentage = read_tank_percentage() #water level sensor
-                     if upper_tank_percentage is not None:
-                            esp_now.send(CONTROLLER_MAC, str(tank_percentage), False)
-                            print("Sent :", upper_tank_percentage, "%")
-                                 
-              machine.lightsleep(cycle_time * 1000)
-       
-       except KeyboardInterrupt as err:
-           raise err #  use Ctrl-C to exit to micropython repl
-       except Exception as err:
-           print ('Error during execution:', err)
-           reboot()
 
-if __name__ == "__main__":
-    main()
+try:    
+      #if the machine is powered off and on check for an updated software version
+      if (machine.reset_cause() == 1):
+          
+             print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
+             utime.sleep(5)
+              
+             firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
+             ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
+             ota_updater.download_and_install_update_if_available()
+      else:
+          pass
+             
+      esp_now = initialize_espnow()
+      if esp_now is None:
+           reboot()
+      else:
+          pass
+                           
+      while True:
+             upper_tank_percentage = ("U"+str(read_tank_percentage())) #water level sensor
+             sensor_battery = ("V"+str(100))                          
+             if upper_tank_percentage is not None:
+                    esp_now.send(controller_mac, upper_tank_percentage, False)
+                    print("Sent Upper Tank:", upper_tank_percentage, "%")
+                    esp_now.send(controller_mac, sensor_battery, False)
+                    print("Sent Battery:", sensor_battery, "%")
+             else:
+                 pass
+                         
+             machine.deepsleep(cycle_time * 1000)
+
+except KeyboardInterrupt as err:
+   raise err #  use Ctrl-C to exit to micropython repl
+except Exception as err:
+   print ('Error during execution:', err)
+   reboot()
