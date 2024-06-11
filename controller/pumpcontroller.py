@@ -1,4 +1,4 @@
-#Pump Controller V1
+#Pump Controller V1.1
 
 from a02yyuw import A02YYUW
 import time
@@ -40,7 +40,7 @@ pump_cycle_count = 0
 # bmp.use_case(BMP280_CASE_WEATHER)
 
 # Water pump Relay
-#pin_relay = Pin(32, mode=Pin.OUT)
+#pump_relay = Pin(32, mode=Pin.OUT)
 
 def reboot(delay = reboot_delay):
  #  print a message and give time for user to pre-empt reboot
@@ -92,8 +92,6 @@ try:
 
     # Register the callback
     e.irq(recv_cb)
-
-#    bme = BME280.BME280(i2c=i2c) #initiate the BME280 sensor
     
     while True:
         
@@ -117,7 +115,8 @@ try:
             pump_cycle_count = 0
         else:
             pass
-        
+
+           
         # Check the temperature and tank levels and start the pump if necessary
 #         if ((time.ticks_diff(time.ticks_ms(), pump_timer_zero) >= (pump_check_interval * 60 *1000))
 #            and (time.ticks_diff(time.ticks_ms(), upper_tank_receive_timestamp) <= (2 * 60 * 60 *1000))
@@ -137,6 +136,7 @@ try:
 #                         pump_relay.off()
 #                         print("Pump Relay Off")
 #                         pump_cycle_count += 1
+#                         pump_timer_zero = 0 #reset the pump timer
 #                 else:
 #                     pass
 #                       
