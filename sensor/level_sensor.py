@@ -49,7 +49,7 @@ def battery_voltage(): # Battery Voltage
     adc = ADC(0)
     raw = adc.read()
     battery_voltage = raw * calib_factor / 1024
-    return battery_voltage)
+    return battery_voltage
 
 
 # establish ESP-NOW
