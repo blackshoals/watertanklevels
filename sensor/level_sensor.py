@@ -11,7 +11,7 @@ from WIFI_CONFIG import SSID, PASSWORD
 #if the machine is powered off and on check for an updated software version
 if (machine.reset_cause() == 1):
        firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
-       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "sensor.py")
+       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
        ota_updater.download_and_install_update_if_available()
 else:
        pass
