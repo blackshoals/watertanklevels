@@ -32,8 +32,8 @@ def read_tank_percentage():
                 distance = round(distance / 10)
                 tank_percentage = round((1 - (distance - tank_offset) / tank_height) * 100)
                 return tank_percentage
-        except Exception as e:
-            print('Error reading sensor:', e)
+        except Exception as err:
+            print('Error reading sensor:', err)
         retries -= 1
         utime.sleep_ms(50)
     return None
