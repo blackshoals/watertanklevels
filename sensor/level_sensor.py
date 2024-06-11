@@ -1,4 +1,4 @@
-#Water Tank Sensor V2
+#Water Tank Sensor V3
 
 from a02yyuw import A02YYUW
 import utime
@@ -81,7 +81,7 @@ try:
         utime.sleep(0.5)
         if upper_tank_percentage is not None:
             sta.active(True)
-            e.send(controller_mac,str(upper_tank_percentage), True)     # send commands to the pump controller
+            e.send(controller_mac,str(upper_tank_percentage), False)     # send commands to the pump controller
             print("Sent :", upper_tank_percentage, "%")
             sta.active(False)
             
