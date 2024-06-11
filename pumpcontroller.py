@@ -3,7 +3,6 @@
 #Pump Controller
 
 from a02yyuw import A02YYUW
-import BME280
 import time
 import network
 import espnow
