@@ -1,0 +1,145 @@
+#include <esp_now.h>
+#include <WiFi.h>
+#include <TFT_eSPI.h>
+#include "Noto.h"
+#include "NotoBig.h"
+#define PIN_POWER_ON 15    //enable battery
+TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite sprite = TFT_eSprite(&tft);
+
+int x=85;
+int y=100;
+int upper_tank_percentage=0; // show empty until a sensor reading comes in
+int lower_tank_percentage=0;
+unsigned short c1=TFT_BLUE;
+unsigned short c2=TFT_BLACK;
+unsigned short c3=TFT_WHITE;
+unsigned short c4=TFT_SILVER;
+unsigned short c5=TFT_GREEN;
+unsigned short c6=TFT_YELLOW;
+unsigned short c7=TFT_RED;
+unsigned short upper_tank_arc_colour;
+unsigned short lower_tank_arc_colour;
+
+unsigned long startTime = millis(); // Store the current time
+String data;
+
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  
+  memcpy(&data, incomingData, sizeof(data));
+
+
+  // parse the message into upper and lower tank readings
+  if (data.substring(0,1) == "U") {
+      upper_tank_percentage = data.substring(1,3).toInt();
+  } else if (data.substring(0,1) == "L") {
+      lower_tank_percentage = data.substring(1,3).toInt();
+  }
+  
+  draw(); //draw the gauges
+}
+
+void setup() {
+
+  pinMode(PIN_POWER_ON, OUTPUT);   //triggers the LCD backlight, and enables battery power
+  digitalWrite(PIN_POWER_ON, HIGH);  //enable battery power
+  
+  tft.init();
+  tft.fillScreen(c2);
+  tft.drawString("WAITING...",10,10,4);
+  sprite.createSprite(170,320);
+
+     //brightness
+     ledcSetup(0, 10000, 8);
+     ledcAttachPin(38, 0);
+     ledcWrite(0, 160);
+
+
+  WiFi.mode(WIFI_STA);
+  esp_now_init();
+  esp_now_register_recv_cb(OnDataRecv); // Call OnDataRecv to process the message when it comes in
+}
+
+void draw()
+  {
+
+    if (upper_tank_percentage >= 60) {
+        upper_tank_arc_colour = c5;
+    } else if ((upper_tank_percentage < 60) && (upper_tank_percentage >= 30)) {
+        upper_tank_arc_colour = c6;
+    }
+      else {
+        upper_tank_arc_colour = c7;
+    }
+  
+     if (lower_tank_percentage >= 60) {
+        lower_tank_arc_colour = c5;
+    } else if ((lower_tank_percentage < 60) && (lower_tank_percentage >= 30)) {
+        lower_tank_arc_colour = c6;
+    }
+      else {
+        lower_tank_arc_colour = c7;
+    }  
+
+
+//Header Label
+    sprite.loadFont(Noto);
+    sprite.setTextDatum(0);
+    sprite.setTextColor(c4,c2);
+    sprite.drawString("Water Levels",x-45,10);
+    sprite.unloadFont();
+
+//Upper Tank
+    sprite.loadFont(Noto);
+    sprite.setTextDatum(0);
+    sprite.setTextColor(c4,c2);
+    sprite.drawString("Upper Tank %",x-50,y-60);
+    sprite.unloadFont();
+
+    sprite.drawSmoothArc(x, y+15, 55, 40, 0, (upper_tank_percentage*360)/100, upper_tank_arc_colour,c2);
+    sprite.drawSmoothArc(x, y+15, 55, 40, (upper_tank_percentage*360)/100, 360, 0x09CB, c2);
+
+    sprite.loadFont(NotoBig);
+    sprite.setTextDatum(4);
+    sprite.setTextColor(c3,c2,true);
+    sprite.drawNumber(upper_tank_percentage,x,y+15);
+    sprite.unloadFont();
+
+//Lower Tank
+    sprite.loadFont(Noto);
+    sprite.setTextDatum(0);
+    sprite.setTextColor(c4,c2);
+    sprite.drawString("Lower Tank %",x-50,y+80);
+    sprite.unloadFont();
+
+    sprite.drawSmoothArc(x, y+154, 55,40, 0, (lower_tank_percentage*360)/100, lower_tank_arc_colour, c2);
+    sprite.drawSmoothArc(x, y+154, 55,40, (lower_tank_percentage*360)/100, 360, 0x09CB, c2);
+
+    sprite.loadFont(NotoBig);
+    sprite.setTextDatum(4);
+    sprite.setTextColor(c3,c2,true);
+    sprite.drawNumber(lower_tank_percentage,x,y+156);
+    sprite.unloadFont();
+
+  
+    sprite.pushSprite(0,0);
+  }
+
+
+void loop() {
+
+  
+  if (millis() - startTime >= 300000) { // If 5 minutes has passed begin sleep
+    
+    //Now sleep the display
+    pinMode(4,OUTPUT); //
+    digitalWrite(4,LOW); // Should force backlight off
+    tft.writecommand(ST7789_DISPOFF);// Switch off the display
+    tft.writecommand(ST7789_SLPIN);// Sleep the display driver
+
+    // Put the ESP32 into deep sleep mode
+    //esp_sleep_enable_timer_wakeup(1 * 20 * 1000000); // Set wakeup timer for 20 seconds
+    esp_deep_sleep_start(); // Enter deep sleep mode
+  }
+  
+}
