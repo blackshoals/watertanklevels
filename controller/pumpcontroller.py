@@ -1,25 +1,17 @@
-#Pump Controller V2
+#Pump Controller V1
 
 from a02yyuw import A02YYUW
 import time
 import network
 import espnow
 import machine
+import ujson
 import bmp280
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
 
-
-#if the machine is powered off and on check for an updated software version
-if (machine.reset_cause() == 1):
-       firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
-       ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
-       ota_updater.download_and_install_update_if_available()
-else:
-       pass
-
 cycle_time = 65  # seconds
-sensor_send_interval = 5  # seconds
+sensor_send_interval = 15  # seconds
 pump_check_interval = 30 # minutes
 pump_run_time = 20 #minutes
 reboot_delay = 5  # seconds
@@ -27,7 +19,8 @@ display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
 tank_offset = 5  # space between water surface when full and sensor in cm
 tank_height = 40  # total height from bottom to sensor in cm
-upper_tank_message = 0 #initialize before receiving an ESP-NOW message
+upper_tank_percentage = 0 #initialize before receiving an ESP-NOW message
+battery_voltage = 0 #initialize before receiving an ESP-NOW message
 sensor_timer_zero = time.ticks_ms() #initiate the interval timer for performing tasks
 pump_timer_zero = time.ticks_ms()
 upper_tank_receive_timestamp = time.ticks_ms()
@@ -52,64 +45,94 @@ def reboot(delay = reboot_delay):
 
 def read_tank_percentage():  # Read the local tank sensor
     sensor = A02YYUW()
-    while True:
-        distance = sensor.read()
+    retries = 10
+    while retries > 0:
+        try:
+            distance = sensor.read()
+            if distance is not None:
+                distance = round(distance / 10)
+                tank_percentage = round((1 - (distance - tank_offset) / tank_height) * 100)
+                return tank_percentage
+        except Exception as err:
+            print('Error reading sensor:', err)
+        retries -= 1
         time.sleep_ms(50)
-        if distance is not None: #take readings until one is found
-            distance = round(distance/10)          # tank measurement in cm
-            tank_percentage = round((1-(distance-tank_offset)/tank_height) *100)
-            return tank_percentage
-            break
-        else:
-            pass
+    return None
 
-def recv_cb(e):  # Callback function to handle incoming ESP-NOW messages
-    global upper_tank_message
+def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages
+    global upper_tank_percentage
+    global battery_voltage
     while True:  # Process all messages in the buffer
-        mac, msg = e.irecv(0)  # Non-blocking read
+        mac, msg = esp_now.irecv(0)  # Non-blocking read
         if mac is None:
             return
         # Assuming the message contains the new sensor value
-        upper_tank_message = msg.decode('utf-8')
+        message = ujson.loads(msg)
+        upper_tank_percentage = message['upper_tank_percentage']
+        battery_voltage = message['battery_voltage']                    
+            
+def initialize_espnow():
+    try:
+        #establish ESP-NOW
+        print('Initializing...')
+        sta = network.WLAN(network.STA_IF) #set station mode
+        sta.active(True)
+
+        esp_now = espnow.ESPNow()
+        esp_now.active(True)
+        esp_now.config(timeout_ms=cycle_time * 1000)
+        esp_now.add_peer(display_mac)
+
+
+        return esp_now
+    
+    except Exception as err:
+        print('Error initializing ESP-NOW:', err)
+        return None
 
 
 #main program body
 try:
-    print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
-    time.sleep(5)
-
-    #establish ESP-NOW
-    print('Initializing...')
-    ap = network.WLAN(network.AP_IF) #turn off the AP
-    ap.active(False)
-    sta = network.WLAN(network.STA_IF) #set station mode
-    sta.active(True)
-
-    e = espnow.ESPNow()
-    e.active(True)
-    e.config(timeout_ms=cycle_time * 1000)
-    e.add_peer(display_mac)
+        #if the machine is powered off and on check for an updated software version
+    if (machine.reset_cause() == 1):
+        print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
+        time.sleep(5)
+        #if the machine is powered off and on check for an updated software version
+        firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
+        ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
+        ota_updater.download_and_install_update_if_available()
+    else:
+           pass
+        
+    esp_now = initialize_espnow()
+    if esp_now is None:
+           reboot()
+    else:
+        pass
 
     # Register the callback
-    e.irq(recv_cb)
+    esp_now.irq(recv_cb)
     
     while True:
         
         #Compile the tank sensor reading and send them to the display at the send interval
         if time.ticks_diff(time.ticks_ms(), sensor_timer_zero) >= (sensor_send_interval * 1000):# if time has reached the send interval
-            lower_tank_percentage = ("L"+str(read_tank_percentage())) # read connected water level sensor
-            upper_tank_percentage = ("U"+str(upper_tank_message)) # convert received message
-
-            print ("Upper Tank: ",upper_tank_percentage, " %")
-            print ("Lower Tank: ",lower_tank_percentage, " %")
+            lower_tank_percentage = read_tank_percentage() # read connected water level sensor
             
-            e.send(display_mac, upper_tank_percentage, False)
-            time.sleep_ms(50)
-            e.send(display_mac, lower_tank_percentage, False)
+                   
+            send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})
             
+            esp_now.send(display_mac,ujson.dumps(send_message), True)
+                
+            print("Upper :", send_message["upper_tank_percentage"]," %")
+            print("Lower :", send_message["lower_tank_percentage"]," %")
+            print("Battery :", send_message["battery_voltage"]," %")
+                     
             sensor_timer_zero = time.ticks_ms()  # Reset the interval timer
+
         else:
             pass
+        
         
         if time.ticks_diff(time.ticks_ms(), pump_cycle_limiter) >= (24 * 60 * 60 *1000): #reset the pump cycle counter every 24 hours
             pump_cycle_count = 0
@@ -155,3 +178,4 @@ except KeyboardInterrupt as err:
 except Exception as err:
     print ('Error during execution:', err)
     reboot()
+
