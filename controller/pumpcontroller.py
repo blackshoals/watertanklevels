@@ -5,8 +5,9 @@ import time
 import network
 import espnow
 import machine
+import machine
 import ujson
-import bmp280
+import ahtx0
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
 
@@ -27,11 +28,11 @@ pump_timer_zero = time.ticks_ms()
 upper_tank_receive_timestamp = time.ticks_ms()
 pump_cycle_limiter = time.ticks_ms()
 pump_cycle_count = 0
-       
-# ESP32 - Pin assignment for BMP280
-# bus = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21), freq=10000)
-# bmp = BMP280(bus)
-# bmp.use_case(BMP280_CASE_WEATHER)
+
+#set up the AHT20 temp sensor and power it with Pin 23
+pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
+i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
+aht20 = ahtx0.AHT20(i2c)
 
 # Water pump Relay
 #pump_relay = Pin(32, mode=Pin.OUT)
@@ -43,6 +44,11 @@ def reboot(delay = reboot_delay):
  #  or just machine.deepsleep(delay) or lightsleep()
     time.sleep(delay)
     machine.reset()
+    
+def update_sensor_data():
+    global temperature, humidity
+    temperature = round(aht20.temperature, 1)
+    humidity = round(aht20.relative_humidity)
 
 def read_tank_percentage():  # Read the local tank sensor
     sensor = A02YYUW()
@@ -73,7 +79,7 @@ def send_tanks_info(esp_now):
             print("Upper :", send_message["upper_tank_percentage"]," %")
             print("Lower :", send_message["lower_tank_percentage"]," %")
             print("Battery :", send_message["battery_voltage"]," %")
-
+            print("Temperature : ", temperature, " C", " Humidity : ", humidity, " %")
 
 def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages
     global upper_tank_percentage
@@ -107,7 +113,7 @@ def initialize_espnow():
         return None
 
 
-#main program body
+#main program body    
 try:
         #if the machine is powered off and on check for an updated software version
     if (machine.reset_cause() == 1):
@@ -128,7 +134,7 @@ try:
 
     # Register the callback
     esp_now.irq(recv_cb)
-
+    
     while True:
         
         #Compile the tank sensor reading and send them to the display at the send interval
@@ -144,6 +150,7 @@ try:
         else:
             pass
 
+        update_sensor_data()
            
         # Check the temperature and tank levels and start the pump if necessary
 #         if ((time.ticks_diff(time.ticks_ms(), pump_timer_zero) >= (pump_check_interval * 60 *1000))
@@ -154,7 +161,7 @@ try:
 #                # limit pumping to 4 cycles per 24 hours
 #   
 #             print("Checking to start pump")
-#             if bmp.temperature >=5: #check the BMP280 to make sure it is warm enough to start the pump
+#             if temperature >=5: #check the AHT20 to make sure it is warm enough to start the pump
 #                 print(" Temperature is above 5 degrees ")
 #                 if ((int(upper_tank_percentage[1:]) < 80 and int(upper_tank_percentage[1:]) != 0)
 #                 and (int(lower_tank_percentage[1:]) > 40)):
