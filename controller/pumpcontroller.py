@@ -19,6 +19,7 @@ display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
 tank_offset = 5  # space between water surface when full and sensor in cm
 tank_height = 40  # total height from bottom to sensor in cm
+lower_tank_percentage = 0 #initialize before receiving an ESP-NOW message
 upper_tank_percentage = 0 #initialize before receiving an ESP-NOW message
 battery_voltage = 0 #initialize before receiving an ESP-NOW message
 sensor_timer_zero = time.ticks_ms() #initiate the interval timer for performing tasks
@@ -58,6 +59,21 @@ def read_tank_percentage():  # Read the local tank sensor
         retries -= 1
         time.sleep_ms(50)
     return None
+
+def send_tanks_info(esp_now):
+            global lower_tank_percentage
+            global upper_tank_percentage
+            global battery_voltage
+    
+            lower_tank_percentage = read_tank_percentage() # read connected water level sensor
+                              
+            send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})           
+            esp_now.send(display_mac,ujson.dumps(send_message), True)
+                
+            print("Upper :", send_message["upper_tank_percentage"]," %")
+            print("Lower :", send_message["lower_tank_percentage"]," %")
+            print("Battery :", send_message["battery_voltage"]," %")
+
 
 def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages
     global upper_tank_percentage
@@ -112,24 +128,13 @@ try:
 
     # Register the callback
     esp_now.irq(recv_cb)
-    
+
     while True:
         
         #Compile the tank sensor reading and send them to the display at the send interval
         if time.ticks_diff(time.ticks_ms(), sensor_timer_zero) >= (sensor_send_interval * 1000):# if time has reached the send interval
-            lower_tank_percentage = read_tank_percentage() # read connected water level sensor
-            
-                   
-            send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})
-            
-            esp_now.send(display_mac,ujson.dumps(send_message), True)
-                
-            print("Upper :", send_message["upper_tank_percentage"]," %")
-            print("Lower :", send_message["lower_tank_percentage"]," %")
-            print("Battery :", send_message["battery_voltage"]," %")
-                     
+            send_tanks_info(esp_now)                    
             sensor_timer_zero = time.ticks_ms()  # Reset the interval timer
-
         else:
             pass
         
@@ -178,4 +183,3 @@ except KeyboardInterrupt as err:
 except Exception as err:
     print ('Error during execution:', err)
     reboot()
-
