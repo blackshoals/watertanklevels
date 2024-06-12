@@ -1,8 +1,11 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <TFT_eSPI.h>
+#include <ArduinoJson.h>
 #include "Noto.h"
 #include "NotoBig.h"
+#include <ArduinoJson.h>
+
 #define PIN_POWER_ON 15    //enable battery
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite = TFT_eSprite(&tft);
@@ -11,6 +14,7 @@ int x=85;
 int y=100;
 int upper_tank_percentage=0; // show empty until a sensor reading comes in
 int lower_tank_percentage=0;
+int battery_voltage=0;
 unsigned short c1=TFT_BLUE;
 unsigned short c2=TFT_BLACK;
 unsigned short c3=TFT_WHITE;
@@ -25,21 +29,41 @@ unsigned long startTime = millis(); // Store the current time
 String data;
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
-  
-  memcpy(&data, incomingData, sizeof(data));
 
+// Convert the incoming byte array to a string
+  data = String((char*)incomingData);
 
-  // parse the message into upper and lower tank readings
-  if (data.substring(0,1) == "U") {
-      upper_tank_percentage = data.substring(1,3).toInt();
-  } else if (data.substring(0,1) == "L") {
-      lower_tank_percentage = data.substring(1,3).toInt();
-  }
+  // Allocate memory for the JSON document
+  StaticJsonDocument<250> doc; // Adjust the size based on your expected JSON structure
+
+  // Deserialize the JSON string into the document
+  DeserializationError error = deserializeJson(doc, data);
+
+//  // Check if the deserialization was successful
+//  if (error) {
+//    Serial.print(F("deserializeJson() failed: "));
+//    Serial.println(error.f_str());
+//    return;
+//  }
+
+  // Access the values from the parsed JSON
+  upper_tank_percentage = doc["upper_tank_percentage"].as<int>();
+  lower_tank_percentage = doc["lower_tank_percentage"].as<int>(); // Make sure this key exists in your JSON
+  battery_voltage = doc["battery_voltage"].as<int>(); // Ensure this key matches your JSON structure
+
+//  Serial.print("Upper Tank Percentage:");
+//  Serial.println(upper_tank_percentage);
+//  Serial.print("Lower Tank Percentage:");
+//  Serial.println(lower_tank_percentage);
+//  Serial.print("Battery Voltage:");
+//  Serial.println(battery_voltage);
   
   draw(); //draw the gauges
 }
 
 void setup() {
+
+  //Serial.begin(9600);
 
   pinMode(PIN_POWER_ON, OUTPUT);   //triggers the LCD backlight, and enables battery power
   digitalWrite(PIN_POWER_ON, HIGH);  //enable battery power
