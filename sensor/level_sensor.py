@@ -1,15 +1,16 @@
-#Water Tank Sensor V5
+#Water Tank Sensor V1
 
-import utime
+import time
 import network
 import espnow
 import machine
+import ujson
 from a02yyuw import A02YYUW
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
  
 reboot_delay = 5 #seconds
-cycle_time = 15 #seconds
+cycle_time = 900 #seconds
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0' # MAC address of peer1's wifi interface
 tank_offset = 5  #space between water surface when full and sensor in cm
 tank_height = 60 # total height from bottom to sensor in cm
@@ -19,7 +20,7 @@ def reboot(delay = reboot_delay):
  #  in case we are in a (battery consuming) boot loop
     print (f'Rebooting device in {delay} seconds (Ctrl-C to escape).')
  #  or just machine.deepsleep(delay) or lightsleep()
-    utime.sleep(delay)
+    time.sleep(delay)
     machine.reset()
 
 def read_tank_percentage():
@@ -32,19 +33,20 @@ def read_tank_percentage():
                 distance = round(distance / 10)
                 tank_percentage = round((1 - (distance - tank_offset) / tank_height) * 100)
                 return tank_percentage
-        except Exception as err:
-            print('Error reading sensor:', err)
+        except Exception as e:
+            print('Error reading sensor:', e)
         retries -= 1
-        utime.sleep_ms(50)
+        time.sleep_ms(50)
     return None
         
-def battery_voltage(): # Battery Voltage
-# Voltage Divider R1 = 6K and R2 = 22k
-    calib_factor = 5.28
-    adc = ADC(0)
-    raw = adc.read()
-    battery_voltage = raw * calib_factor / 1024
-    return battery_voltage
+def read_battery_voltage(): # Battery Voltage
+# # Voltage Divider R1 = 6K and R2 = 22k
+#     calib_factor = 5.28
+#     adc = ADC(0)
+#     raw = adc.read()
+#     battery_voltage = raw * calib_factor / 1024
+     battery_voltage = 75
+     return battery_voltage
 
 def initialize_espnow():
        try:  
@@ -58,8 +60,8 @@ def initialize_espnow():
            e.config(timeout_ms = (cycle_time * 1000))
            e.add_peer(controller_mac)            # add controller as a receiver
            return e
-       except Exception as err:
-        print('Error initializing ESP-NOW:', err)
+       except Exception as e:
+        print('Error initializing ESP-NOW:', e)
         return None
 
 
@@ -68,7 +70,7 @@ try:
       if (machine.reset_cause() == 1):
           
              print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
-             utime.sleep(5)
+             time.sleep(5)
               
              firmware_url = "https://github.com/blackshoals/watertanklevels/main/sensor/"
              ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
@@ -83,17 +85,18 @@ try:
           pass
                            
       while True:
-             upper_tank_percentage = ("U"+str(read_tank_percentage())) #water level sensor
-             sensor_battery = ("V"+str(100))                          
-             if upper_tank_percentage is not None:
-                    esp_now.send(controller_mac, upper_tank_percentage, False)
-                    print("Sent Upper Tank:", upper_tank_percentage, "%")
-                    esp_now.send(controller_mac, sensor_battery, False)
-                    print("Sent Battery:", sensor_battery, "%")
-             else:
+            upper_tank_percentage = read_tank_percentage() #water level sensor
+            battery_voltage = read_battery_voltage()
+
+            if upper_tank_percentage is not None:
+                 send_message = ({"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})
+                 esp_now.send(controller_mac, ujson.dumps(send_message), True)
+                 print("Sent Upper Tank:", upper_tank_percentage, "%")
+                 print("Sent Battery:", battery_voltage, "%")
+            else:
                  pass
-                         
-             machine.deepsleep(cycle_time * 1000)
+                                         
+            machine.deepsleep(cycle_time * 1000)
 
 except KeyboardInterrupt as err:
    raise err #  use Ctrl-C to exit to micropython repl
