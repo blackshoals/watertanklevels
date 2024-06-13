@@ -11,10 +11,11 @@ import ahtx0
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
 
-cycle_time = 65  # seconds
+cycle_time = 60  # seconds
 sensor_send_interval = 15  # seconds
 pump_check_interval = 30 # minutes
-pump_run_time = 20 #minutes
+pump_run_time = 20 #minutes per cycle
+pump_daily_cycles = 4 #how many time cycles can run in 24 hours
 reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
@@ -29,13 +30,15 @@ upper_tank_receive_timestamp = time.ticks_ms()
 pump_cycle_limiter = time.ticks_ms()
 pump_cycle_count = 0
 
+
 #set up the AHT20 temp sensor and power it with Pin 23
 pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
 i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
 aht20 = ahtx0.AHT20(i2c)
 
 # Water pump Relay
-#pump_relay = Pin(32, mode=Pin.OUT)
+pump_relay = machine.Pin(15, mode=machine.Pin.OUT)
+pump_relay.off
 
 def reboot(delay = reboot_delay):
  #  print a message and give time for user to pre-empt reboot
@@ -152,36 +155,32 @@ try:
 
         update_sensor_data()
            
-        # Check the temperature and tank levels and start the pump if necessary
-#         if ((time.ticks_diff(time.ticks_ms(), pump_timer_zero) >= (pump_check_interval * 60 *1000))
-#            and (time.ticks_diff(time.ticks_ms(), upper_tank_receive_timestamp) <= (2 * 60 * 60 *1000))
-#            and (pump_cycle_count <= 4)):
-#                #start the pump at a certain interval
-#                #check that the tank reading is less < 2 hours old
-#                # limit pumping to 4 cycles per 24 hours
-#   
-#             print("Checking to start pump")
-#             if temperature >=5: #check the AHT20 to make sure it is warm enough to start the pump
-#                 print(" Temperature is above 5 degrees ")
-#                 if ((int(upper_tank_percentage[1:]) < 80 and int(upper_tank_percentage[1:]) != 0)
-#                 and (int(lower_tank_percentage[1:]) > 40)):
-#                         pump_relay.on()
-#                         print("Pump Relay On")
-#                         time.sleep(pump_run_time*60)
-#                         pump_relay.off()
-#                         print("Pump Relay Off")
-#                         pump_cycle_count += 1
-#                         pump_timer_zero = 0 #reset the pump timer
-#                 else:
-#                     pass
-#                       
-#             else:
-#                 pass
-#           
-#         else:
-#             pass
-                                     
+        # Check the temperature and tank levels and start the pump if necessary       
+        if ((time.ticks_diff(time.ticks_ms(), pump_timer_zero) >= (pump_check_interval * 60 *1000))
+        and (time.ticks_diff(time.ticks_ms(), upper_tank_receive_timestamp) <= (2 * 60 * 60 *1000))
+        and (pump_cycle_count < pump_daily_cycles)
+        and (upper_tank_percentage < 80)
+        and (upper_tank_percentage != 0)
+        and (lower_tank_percentage > 40)
+        and (temperature >= 5)):
+           #start the pump at a certain interval
+           #check that the tank reading is less < 2 hours old
+           # limit pumping to 4 cycles per 24 hours
+
+                print("Starting pump")
             
+                pump_relay.on()
+                print("Pump Relay On")
+                time.sleep(pump_run_time*60)
+                pump_relay.off()
+                print("Pump Relay Off")
+                pump_cycle_count += 1
+                pump_timer_zero = time.ticks_ms() #reset the pump timer
+                print("Pump_cycle_count ",pump_cycle_count)
+
+        else:
+            pass
+                                                
         # Small delay to prevent CPU overload
         time.sleep_ms(50)
         
