@@ -13,8 +13,8 @@ from WIFI_CONFIG import SSID, PASSWORD
 
 cycle_time = 60  # seconds
 sensor_send_interval = 15  # seconds
-pump_check_interval = 30 # minutes
-pump_run_time = 20 #minutes per cycle
+pump_check_interval = 1 # minutes
+pump_run_time = 1 #minutes per cycle
 pump_daily_cycles = 4 #how many time cycles can run in 24 hours
 reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
@@ -29,6 +29,7 @@ pump_timer_zero = time.ticks_ms()
 upper_tank_receive_timestamp = time.ticks_ms()
 pump_cycle_limiter = time.ticks_ms()
 pump_cycle_count = 0
+
 
 #set up the AHT20 temp sensor and power it with Pin 23
 pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
@@ -72,8 +73,9 @@ def send_tanks_info(esp_now):
             global lower_tank_percentage
             global upper_tank_percentage
             global battery_voltage
-            
-            time.sleep_ms(1000)
+    
+            lower_tank_percentage = read_tank_percentage() # read connected water level sensor
+                              
             send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})           
             esp_now.send(display_mac,ujson.dumps(send_message), True)
                 
@@ -86,24 +88,13 @@ def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages
     global upper_tank_percentage
     global battery_voltage
     while True:  # Process all messages in the buffer
-        mac, msg = esp_now.irecv(0) # Non-blocking read
-#        print(mac)
-#        print(msg)
+        mac, msg = esp_now.irecv(0)  # Non-blocking read
         if mac is None:
             return
-        
-        elif mac == sensor_mac:  # Assuming the message contains the new sensor value
-            message = ujson.loads(msg)
-            upper_tank_percentage = message['upper_tank_percentage']
-            battery_voltage = message['battery_voltage']
-            
-        elif mac == display_mac:  #the display sends a message when it boots to get a return message of the latest set of readings
-            # Split the msg bytearray at the first occurrence of the null byte
-            msg =msg.split(b'\x00')[0].decode('utf-8')
-#            print(msg)
-            send_tanks_info(esp_now);
-        else:
-            pass
+        # Assuming the message contains the new sensor value
+        message = ujson.loads(msg)
+        upper_tank_percentage = message['upper_tank_percentage']
+        battery_voltage = message['battery_voltage']                    
             
 def initialize_espnow():
     try:
@@ -151,7 +142,7 @@ try:
         
         #Compile the tank sensor reading and send them to the display at the send interval
         if time.ticks_diff(time.ticks_ms(), sensor_timer_zero) >= (sensor_send_interval * 1000):# if time has reached the send interval
-            lower_tank_percentage = read_tank_percentage() # read connected water level sensor                  
+            send_tanks_info(esp_now)                    
             sensor_timer_zero = time.ticks_ms()  # Reset the interval timer
         else:
             pass
