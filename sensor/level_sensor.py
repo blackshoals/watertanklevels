@@ -1,4 +1,4 @@
-#Water Tank Sensor V1
+#Water Tank Sensor V2
 
 import time
 import network
@@ -33,8 +33,8 @@ def read_tank_percentage():
                 distance = round(distance / 10)
                 tank_percentage = round((1 - (distance - tank_offset) / tank_height) * 100)
                 return tank_percentage
-        except Exception as e:
-            print('Error reading sensor:', e)
+        except Exception as err:
+            print('Error reading sensor:', err)
         retries -= 1
         time.sleep_ms(50)
     return None
@@ -54,14 +54,14 @@ def initialize_espnow():
            print('Initializing...')
            sta = network.WLAN(network.STA_IF) #set station mode
            sta.active(True)
-         
-           e = espnow.ESPNow() # Enable ESP-NOW
+
+           # Enable ESP-NOW
+           e = espnow.ESPNow()
            e.active(True)
-           e.config(timeout_ms = (cycle_time * 1000))
            e.add_peer(controller_mac)            # add controller as a receiver
            return e
-       except Exception as e:
-        print('Error initializing ESP-NOW:', e)
+       except Exception as err:
+        print('Error initializing ESP-NOW:', err)
         return None
 
 
@@ -91,8 +91,7 @@ try:
             if upper_tank_percentage is not None:
                  send_message = ({"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})
                  esp_now.send(controller_mac, ujson.dumps(send_message), True)
-                 print("Sent Upper Tank:", upper_tank_percentage, "%")
-                 print("Sent Battery:", battery_voltage, "%")
+                 print("Sent Upper Tank:", upper_tank_percentage, "% Battery: ",battery_voltage, " %")
             else:
                  pass
                                          
