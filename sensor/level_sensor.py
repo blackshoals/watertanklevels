@@ -1,4 +1,4 @@
-#Water Tank Sensor V3
+#Water Tank Sensor V4
 
 import time
 import network
@@ -10,7 +10,7 @@ from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
  
 reboot_delay = 5 #seconds
-cycle_time = 15 #seconds
+cycle_time = 60 #seconds
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0' # MAC address of peer1's wifi interface
 tank_offset = 5  #space between water surface when full and sensor in cm
 tank_height = 60 # total height from bottom to sensor in cm
