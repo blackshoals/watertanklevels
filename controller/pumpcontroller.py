@@ -1,4 +1,4 @@
-#Pump Controller V2
+#Pump Controller V1
 
 from a02yyuw import A02YYUW
 import time
@@ -6,12 +6,11 @@ import _thread
 import network
 import espnow
 import machine
+import ustruct
 import ujson
 import ahtx0
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
-
-
 
 reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
@@ -36,7 +35,6 @@ sensor_signal = 0  #initialize before receiving an ESP-NOW message
 temperature = 0 #initialize before receiving an ESP-NOW message
 humidity = 0 #initialize before receiving an ESP-NOW message
 upper_tank_receive_timestamp = time.time()
-
 
 #set up the AHT20 temp sensor and power it with Pin 23
 pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
@@ -99,24 +97,19 @@ def send_tanks_info():
                 else:
                     pass
                                                      
-                send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage,
-                                 "sensor_signal":sensor_signal,"pump_auto_flag":pump_auto_flag,"pump_state":pump_state})
+                send_message = {"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage,
+                                 "sensor_signal":sensor_signal,"pump_auto_flag":pump_auto_flag,"pump_state":pump_state}
+
+                packed_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
                 
-# A test function to check if the ESP-NOW message is more than 250 bytes
-#                 json_string = ujson.dumps(send_message)
-#                 # Calculate the length of the JSON string in bytes
-#                 json_size = len(json_string.encode('utf-8'))
-#                 print(f"Size of JSON object: {json_size} bytes")
-                
-                esp_now.send(display_mac,ujson.dumps(send_message), True)
-#               esp_now.send(ujson.dumps(send_message))            #testing the simple form of send
+                esp_now.send(display_mac, packed_message, True)
                     
                 print("Upper Tank :", send_message["upper_tank_percentage"]," %")
                 print("Lower Tank :", send_message["lower_tank_percentage"]," %")
                 print("SensorBattery :", send_message["battery_voltage"]," %")
+                print("Sensor Signal :", send_message["sensor_signal"]) 
                 print("Pump Auto Flag :", send_message["pump_auto_flag"])
-                print("Pump State :", send_message["pump_state"])               
-                print("Sensor Signal :", send_message["sensor_signal"])               
+                print("Pump State :", send_message["pump_state"])              
                 print("Temperature : ", temperature, " C", " Humidity : ", humidity, " %")
                 
                 time.sleep(sensor_send_interval)
@@ -200,7 +193,6 @@ def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- 
             return
         # Assuming the message contains the new sensor value       
         else:
-            print(msg)
             incoming_msg_processing(mac,msg)
 
 def incoming_msg_processing(mac,msg):
@@ -281,9 +273,7 @@ try:
 
     while True:
         update_temperature_data()
-#         send_tanks_info()
-#         time.sleep(10)
-    
+
             
 except KeyboardInterrupt as err:
     raise err #  use Ctrl-C to exit to micropython repl
