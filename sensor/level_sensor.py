@@ -1,10 +1,10 @@
-#Water Tank Sensor V4
+#Water Tank Sensor V5
 
 import time
 import network
 import espnow
 import machine
-import ujson
+import ustruct
 from a02yyuw import A02YYUW
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
@@ -89,8 +89,8 @@ try:
             battery_voltage = read_battery_voltage()
 
             if upper_tank_percentage is not None:
-                 send_message = ({"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage})
-                 esp_now.send(controller_mac, ujson.dumps(send_message), True)
+                 send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
+                 esp_now.send(controller_mac, send_message, True)
                  print("Sent Upper Tank:", upper_tank_percentage, "% Battery: ",battery_voltage, " %")
             else:
                  pass
