@@ -53,7 +53,7 @@ def reboot(delay = reboot_delay):
     
 def update_temperature_data():
     global temperature, humidity
-    temperature = round(aht20.temperature, 1)
+    temperature = round(aht20.temperature, 1) - 3 #calibrate for temp
     humidity = round(aht20.relative_humidity)
 
 def read_tank_percentage():  # Read the local tank sensor
