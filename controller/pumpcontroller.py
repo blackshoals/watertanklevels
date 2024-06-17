@@ -1,4 +1,4 @@
-#Pump Controller V1
+#Pump Controller V2
 
 from a02yyuw import A02YYUW
 import time
@@ -10,6 +10,7 @@ import ujson
 import ahtx0
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
+
 
 
 reboot_delay = 5  # seconds
@@ -57,7 +58,6 @@ def update_temperature_data():
     global temperature, humidity
     temperature = round(aht20.temperature, 1)
     humidity = round(aht20.relative_humidity)
-    time.sleep(600) # check the temperature every 10 minutes
 
 def read_tank_percentage():  # Read the local tank sensor
     try:
@@ -100,7 +100,14 @@ def send_tanks_info():
                     pass
                                                      
                 send_message = ({"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage,
-                                 "sensor_signal":sensor_signal,"pump_auto_flag":pump_auto_flag,"pump_state":pump_state})           
+                                 "sensor_signal":sensor_signal,"pump_auto_flag":pump_auto_flag,"pump_state":pump_state})
+                
+# A test function to check if the ESP-NOW message is more than 250 bytes
+#                 json_string = ujson.dumps(send_message)
+#                 # Calculate the length of the JSON string in bytes
+#                 json_size = len(json_string.encode('utf-8'))
+#                 print(f"Size of JSON object: {json_size} bytes")
+                
                 esp_now.send(display_mac,ujson.dumps(send_message), True)
 #               esp_now.send(ujson.dumps(send_message))            #testing the simple form of send
                     
@@ -175,7 +182,7 @@ def check_pump():            # Check the temperature and tank levels and start t
                 else:
                     pass
             else:
-                print("Pump Auto Mode is off")
+                 print("Pump Auto Mode is off")
             
             time.sleep(pump_check_interval*60)
             
@@ -193,6 +200,7 @@ def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- 
             return
         # Assuming the message contains the new sensor value       
         else:
+            print(msg)
             incoming_msg_processing(mac,msg)
 
 def incoming_msg_processing(mac,msg):
@@ -270,8 +278,11 @@ try:
         
     #start a thread that checks the pump
     _thread.start_new_thread(check_pump, ())
-    
-    _thread.start_new_thread(update_temperature_data, ())
+
+    while True:
+        update_temperature_data()
+#         send_tanks_info()
+#         time.sleep(10)
     
             
 except KeyboardInterrupt as err:
