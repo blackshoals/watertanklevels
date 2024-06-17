@@ -7,7 +7,6 @@ import network
 import espnow
 import machine
 import ustruct
-import ujson
 import ahtx0
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
@@ -16,7 +15,7 @@ reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
 display_awake_interval = 5 #match to sleep time on display
-sensor_send_interval = 20  # seconds
+sensor_send_interval = 10  # seconds
 pump_check_interval = 1 # minutes
 pump_run_time = 1 #minutes per cycle
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
@@ -97,21 +96,18 @@ def send_tanks_info():
                 else:
                     pass
                                                      
-                send_message = {"lower_tank_percentage":lower_tank_percentage,"upper_tank_percentage":upper_tank_percentage,"battery_voltage":battery_voltage,
-                                 "sensor_signal":sensor_signal,"pump_auto_flag":pump_auto_flag,"pump_state":pump_state}
-
-                packed_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
+                send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
                 
-                esp_now.send(display_mac, packed_message, True)
-                    
-                print("Upper Tank :", send_message["upper_tank_percentage"]," %")
-                print("Lower Tank :", send_message["lower_tank_percentage"]," %")
-                print("SensorBattery :", send_message["battery_voltage"]," %")
-                print("Sensor Signal :", send_message["sensor_signal"]) 
-                print("Pump Auto Flag :", send_message["pump_auto_flag"])
-                print("Pump State :", send_message["pump_state"])              
+                esp_now.send(display_mac, send_message, True)
+                                    
+                print("Upper Tank :", upper_tank_percentage," %")
+                print("Lower Tank :", lower_tank_percentage," %")
+                print("SensorBattery :", battery_voltage," %")
+                print("Sensor Signal :", sensor_signal) 
+                print("Pump Auto Flag :", pump_auto_flag)
+                print("Pump State :", pump_state)              
                 print("Temperature : ", temperature, " C", " Humidity : ", humidity, " %")
-                
+                               
                 time.sleep(sensor_send_interval)
                 
         except Exception as err:
@@ -183,7 +179,6 @@ def check_pump():            # Check the temperature and tank levels and start t
         print('Error checking the pump:', err)
         return None
         
-
 def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- keep short
 
     while True:  # Process all messages in the buffer
@@ -202,10 +197,8 @@ def incoming_msg_processing(mac,msg):
         global pump_auto_flag
                                     
         if mac == sensor_mac:
-            msg = ujson.loads(msg)
-            upper_tank_percentage = msg['upper_tank_percentage']
-            battery_voltage = msg['battery_voltage']
-            print("Message remote sensor ", msg)
+            upper_tank_percentage, battery_voltage = ustruct.unpack('ii', msg)
+            print("Message from remote sensor ")
             
         elif mac == display_mac:
             msg =msg.split(b'\x00')[0].decode('utf-8')
@@ -242,7 +235,6 @@ def initialize_espnow():
         print('Error initializing ESP-NOW:', err)
         return None
 
-
 #main program body    
 try:
     pump_auto_flag = True
@@ -273,7 +265,6 @@ try:
 
     while True:
         update_temperature_data()
-
             
 except KeyboardInterrupt as err:
     raise err #  use Ctrl-C to exit to micropython repl
