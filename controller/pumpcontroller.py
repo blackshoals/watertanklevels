@@ -78,42 +78,32 @@ def read_tank_percentage():  # Read the local tank sensor
 
 # Start a new thread for sending tank info every 15 seconds for 5 minutes
 def send_tanks_info():
-        global lower_tank_percentage
-        global upper_tank_percentage
-        global battery_voltage
-        global sensor_signal
+        global lower_tank_percentageg, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state
         
         try:
             for i in range((display_awake_interval*60)/sensor_send_interval):
                 
                 lower_tank_percentage = read_tank_percentage() # read connected water level sensor
                 pump_state = get_pump_status()
-                
-                #read the sensor signal strength
-                peers = esp_now.peers_table
-                if sensor_mac in peers and peers[sensor_mac]:  # Use 'in' to check for key existence and truthiness to check for non-empty value
-                    sensor_signal= peers[sensor_mac][0]
-                else:
-                    pass
+                sensor_signal = get_sensor_signal()               
                                                      
                 send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
-                
                 esp_now.send(display_mac, send_message, True)
                                     
-                print("Upper Tank :", upper_tank_percentage," %")
-                print("Lower Tank :", lower_tank_percentage," %")
-                print("SensorBattery :", battery_voltage," %")
-                print("Sensor Signal :", sensor_signal) 
-                print("Pump Auto Flag :", pump_auto_flag)
-                print("Pump State :", pump_state)              
-                print("Temperature : ", temperature, " C", " Humidity : ", humidity, " %")
+                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity)
                                
                 time.sleep(sensor_send_interval)
                 
         except Exception as err:
             print('Error sending data:', err)
             return None
-            
+         
+def get_sensor_signal():
+    peers = esp_now.peers_table
+    if sensor_mac in peers and peers[sensor_mac]:
+        return peers[sensor_mac][0]
+    return 0
+
 def turn_on_pump():
     global pump_state
     pump_state = True
