@@ -137,6 +137,10 @@ class OTAUpdater:
         if self.check_for_updates():
             if self.fetch_latest_code():
                 self.update_no_reset() 
-                self.update_and_reset() 
+                self.update_and_reset()
         else:
             print('No new updates available.')
+            
+        # Disconnect from WiFi
+        sta_if = network.WLAN(network.STA_IF)
+        sta_if.active(False)
