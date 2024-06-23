@@ -1,4 +1,4 @@
-#Water Tank Sensor V5
+#Water Tank Sensor V6
 
 import time
 import network
@@ -53,6 +53,7 @@ def initialize_espnow():
            #establish ESP-NOW
            print('Initializing...')
            sta = network.WLAN(network.STA_IF) #set station mode
+           sta.config(protocol=network.MODE_LR) #set Long Range mode
            sta.active(True)
 
            # Enable ESP-NOW
