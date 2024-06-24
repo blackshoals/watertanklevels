@@ -1,4 +1,4 @@
-#Water Tank Sensor V8
+#Water Tank Sensor V9
 
 import time
 import network
@@ -14,6 +14,7 @@ cycle_time = 60 #seconds
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0' # MAC address of peer1's wifi interface
 tank_offset = 5  #space between water surface when full and sensor in cm
 tank_height = 60 # total height from bottom to sensor in cm
+adc_pin = machine.Pin(0)
 
 def reboot(delay = reboot_delay):
  #  print a message and give time for user to pre-empt reboot
@@ -41,10 +42,11 @@ def read_tank_percentage():
         
 def read_battery_voltage(): # Battery Voltage
 # Voltage Divider R1 = 6K and R2 = 22k
-     calib_factor = 5.28
-     adc = ADC(1)
+     calib_factor = 1
+     adc = machine.ADC(adc_pin)
+     adc.atten(adc.ATTN_11DB)
      raw = adc.read()
-     battery_voltage = raw * 1 / 1024
+     battery_voltage = raw * calib_factor * 3.3/4095
 #     battery_voltage = 75
      return battery_voltage
 
