@@ -1,4 +1,4 @@
-#Water Tank Sensor V7
+#Water Tank Sensor V8
 
 import time
 import network
@@ -40,12 +40,12 @@ def read_tank_percentage():
     return None
         
 def read_battery_voltage(): # Battery Voltage
-# # Voltage Divider R1 = 6K and R2 = 22k
-#     calib_factor = 5.28
-#     adc = ADC(0)
-#     raw = adc.read()
-#     battery_voltage = raw * calib_factor / 1024
-     battery_voltage = 75
+# Voltage Divider R1 = 6K and R2 = 22k
+     calib_factor = 5.28
+     adc = ADC(1)
+     raw = adc.read()
+     battery_voltage = raw * 1 / 1024
+#     battery_voltage = 75
      return battery_voltage
 
 def initialize_espnow():
