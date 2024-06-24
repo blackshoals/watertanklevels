@@ -1,4 +1,4 @@
-#Water Tank Sensor V9
+#Water Tank Sensor V1
 
 import time
 import network
@@ -14,7 +14,6 @@ cycle_time = 60 #seconds
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0' # MAC address of peer1's wifi interface
 tank_offset = 5  #space between water surface when full and sensor in cm
 tank_height = 60 # total height from bottom to sensor in cm
-adc_pin = machine.Pin(0)
 
 def reboot(delay = reboot_delay):
  #  print a message and give time for user to pre-empt reboot
@@ -42,12 +41,14 @@ def read_tank_percentage():
         
 def read_battery_voltage(): # Battery Voltage
 # Voltage Divider R1 = 6K and R2 = 22k
-     calib_factor = 1
+     calib_factor = 1/563
+
+     adc_pin = machine.Pin(34, mode=machine.Pin.IN)
      adc = machine.ADC(adc_pin)
-     adc.atten(adc.ATTN_11DB)
+     adc.atten(machine.ADC.ATTN_11DB)
      raw = adc.read()
      battery_voltage = raw * calib_factor
-#     battery_voltage = 75
+     battery_voltage = int(((battery_voltage - 3.3) / (4.2-3.3)) * 100)
      return battery_voltage
 
 def initialize_espnow():
@@ -67,7 +68,8 @@ def initialize_espnow():
         return None
 
 
-try:    
+try:
+       
       #if the machine is powered off and on check for an updated software version
       if (machine.reset_cause() == 1):
           
@@ -87,8 +89,16 @@ try:
           pass
                            
       while True:
+                             
             upper_tank_percentage = read_tank_percentage() #water level sensor
             battery_voltage = read_battery_voltage()
+            
+            # sleep the machine if the battery is low
+            if battery_voltage < 20:
+                 print("Low battery voltage sleep")
+                 machine.deepsleep(2 * (24 * 60 *60 * 1000))
+            else:
+                 pass
 
             if upper_tank_percentage is not None:
                  send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
@@ -98,7 +108,7 @@ try:
                  pass
                                          
             machine.deepsleep(cycle_time * 1000)
-
+                    
 except KeyboardInterrupt as err:
    raise err #  use Ctrl-C to exit to micropython repl
 except Exception as err:
