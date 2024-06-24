@@ -46,7 +46,7 @@ def read_battery_voltage(): # Battery Voltage
      adc = machine.ADC(adc_pin)
      adc.atten(adc.ATTN_11DB)
      raw = adc.read()
-     battery_voltage = raw * calib_factor * 3.3/4095
+     battery_voltage = raw * calib_factor
 #     battery_voltage = 75
      return battery_voltage
 
