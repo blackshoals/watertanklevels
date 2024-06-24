@@ -1,4 +1,4 @@
-#Pump Controller V6
+#Pump Controller V7
 
 from a02yyuw import A02YYUW
 import time
@@ -213,7 +213,6 @@ def initialize_espnow():
         #establish ESP-NOW
         print('Initializing...')
         sta = network.WLAN(network.STA_IF) #set station mode
-        sta.config(protocol=network.MODE_LR) #set Long Range mode
         sta.active(True)
 
         esp_now = espnow.ESPNow()
