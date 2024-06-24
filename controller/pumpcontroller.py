@@ -1,4 +1,4 @@
-#Pump Controller V7
+#Pump Controller V1
 
 from a02yyuw import A02YYUW
 import time
@@ -37,11 +37,11 @@ upper_tank_receive_timestamp = time.time()
 
 #set up the AHT20 temp sensor and power it with Pin 23
 pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
-i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
+i2c = machine.SoftI2C(scl=machine.Pin(21), sda=machine.Pin(22))
 aht20 = ahtx0.AHT20(i2c)
 
 # Water pump Relay
-pump_relay = machine.Pin(15, mode=machine.Pin.OUT)
+pump_relay = machine.Pin(5, mode=machine.Pin.OUT)
 
 def reboot(delay = reboot_delay):
  #  print a message and give time for user to pre-empt reboot
@@ -78,20 +78,20 @@ def read_tank_percentage():  # Read the local tank sensor
 
 # Start a new thread for sending tank info every 15 seconds for 5 minutes
 def send_tanks_info():
-        global lower_tank_percentageg, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state
+        global lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state
         
         try:
             for i in range((display_awake_interval*60)/sensor_send_interval):
                 
                 lower_tank_percentage = read_tank_percentage() # read connected water level sensor
                 pump_state = get_pump_status()
-                sensor_signal = get_sensor_signal()               
+                sensor_signal = get_sensor_signal()
+                
+                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity)                
                                                      
                 send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
                 esp_now.send(display_mac, send_message, True)
-                                    
-                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity)
-                               
+                                                                   
                 time.sleep(sensor_send_interval)
                 
         except Exception as err:
@@ -261,4 +261,3 @@ except KeyboardInterrupt as err:
 except Exception as err:
     print ('Error during execution:', err)
     reboot()
-
