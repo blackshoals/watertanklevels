@@ -105,7 +105,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 
-void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
+void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len)
 {
 
   memcpy(&sensorData, incomingData, sizeof(sensorData));
@@ -175,6 +175,8 @@ void setup()
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
 
+    delay(100);
+
     esp_now_send(receiverAdd, (uint8_t *) &sensorCall, sizeof(sensorCall)); // action
 
     Serial.println( "Setup done" );    
@@ -188,13 +190,13 @@ void percentDisplayBattery()
         // Get the internal calibration value of the chip
         esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc_chars);
         uint32_t raw = analogRead(PIN_BAT_VOLT);
-        uint32_t v1 = esp_adc_cal_raw_to_voltage(raw, &adc_chars) * 2/1000; //The partial pressure is one-half
+        uint32_t v1 = esp_adc_cal_raw_to_voltage(raw, &adc_chars) * 2; //The partial pressure is one-half
 
-        display_battery_percentage = ((v1 - 3.0) / (4.2 - 3.0)) * 100;
+        display_battery_percentage = map(v1, 3400, 4400, 0, 100);
 
         // If the battery is not connected, the ADC detects the charging voltage of TP4056, which is inaccurate.
         // Can judge whether it is greater than 4300mV. If it is less than this value, it means the battery exists.
-        if (v1 > 4.2) {
+        if (v1 > 4300) {
             lv_bar_set_value(ui_barDisplayBattery, 100, LV_ANIM_OFF);
         } else {
             lv_bar_set_value(ui_barDisplayBattery, display_battery_percentage, LV_ANIM_OFF);
@@ -244,7 +246,7 @@ void drawData()
         lv_obj_set_style_bg_color(ui_panelPump, lv_color_hex(0x4899EC), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_color(ui_labelPump, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
         toggleState14 = false;
- 
+  
     }
    
 }
@@ -273,15 +275,15 @@ void loop()
           // Action for toggle ON
           // Example: Send a different message or perform another action
           esp_now_send(receiverAdd, (uint8_t *) &autoOn, sizeof(autoOn)); // action
-          lv_obj_set_style_bg_color(ui_panelAuto, lv_color_hex(0x48ec58), LV_PART_MAIN | LV_STATE_DEFAULT);
-          lv_obj_set_style_text_color(ui_labelAuto, lv_color_hex(0x00040e), LV_PART_MAIN | LV_STATE_DEFAULT);
+//          lv_obj_set_style_bg_color(ui_panelAuto, lv_color_hex(0x48ec58), LV_PART_MAIN | LV_STATE_DEFAULT);
+//          lv_obj_set_style_text_color(ui_labelAuto, lv_color_hex(0x00040e), LV_PART_MAIN | LV_STATE_DEFAULT);
                  
         } else {
           // Action for toggle OFF
           // Example: Send a different message or perform another action
           esp_now_send(receiverAdd, (uint8_t *) &autoOff, sizeof(autoOff)); // action
-          lv_obj_set_style_bg_color(ui_panelAuto, lv_color_hex(0x4899EC), LV_PART_MAIN | LV_STATE_DEFAULT);
-          lv_obj_set_style_text_color(ui_labelAuto, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+//          lv_obj_set_style_bg_color(ui_panelAuto, lv_color_hex(0x4899EC), LV_PART_MAIN | LV_STATE_DEFAULT);
+//          lv_obj_set_style_text_color(ui_labelAuto, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
 
         }
       }
@@ -321,7 +323,7 @@ void loop()
   }
   lastButtonState14 = currentButtonState14;
 
-    if (millis() - startTime >= 300000) // If 5 minutes has passed or the right button pressed begin sleep
+    if (millis() - startTime >= 300000) // If 5 minutes has passed
   { 
     
     //Now sleep the display
