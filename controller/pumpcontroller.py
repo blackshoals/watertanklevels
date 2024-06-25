@@ -1,4 +1,4 @@
-#Pump Controller V1
+#Pump Controller V2
 
 from a02yyuw import A02YYUW
 import time
@@ -21,7 +21,6 @@ pump_run_time = 1 #minutes per cycle
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
 pump_cycle_limiter = time.time()
 pump_cycle_count = 0
-pump_auto_flag = True #disable auto pump from the display - Default On
 pump_state = False #pump status
 tank_offset = 5  # space between water surface when full and sensor in cm
 tank_height = 40  # total height from bottom to sensor in cm
@@ -78,22 +77,14 @@ def read_tank_percentage():  # Read the local tank sensor
 
 # Start a new thread for sending tank info every 15 seconds for 5 minutes
 def send_tanks_info():
-        global lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state
         
         try:
             for i in range((display_awake_interval*60)/sensor_send_interval):
                 
-                lower_tank_percentage = read_tank_percentage() # read connected water level sensor
-                pump_state = get_pump_status()
-                sensor_signal = get_sensor_signal()
-                
-                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity)                
-                                                     
-                send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
-                esp_now.send(display_mac, send_message, True)
-                                                                   
+                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity) 
+                outgoing_msg_processing()
                 time.sleep(sensor_send_interval)
-                
+                                
         except Exception as err:
             print('Error sending data:', err)
             return None
@@ -149,9 +140,11 @@ def check_pump():            # Check the temperature and tank levels and start t
 
                         print("Starting pump")           
                         turn_on_pump()
+                        outgoing_msg_processing()
                         print("Pump Relay On")
                         time.sleep(pump_run_time*60)
                         turn_off_pump()
+                        outgoing_msg_processing()
                         print("Pump Relay Off")
                         pump_cycle_count += 1
                         print("Pump_cycle_count ",pump_cycle_count)
@@ -180,6 +173,17 @@ def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- 
         else:
             incoming_msg_processing(mac,msg)
 
+def outgoing_msg_processing():
+    
+        global lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state
+        
+        lower_tank_percentage = read_tank_percentage() # read connected water level sensor
+        pump_state = get_pump_status()
+        sensor_signal = get_sensor_signal()
+                    
+        send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
+        esp_now.send(display_mac, send_message, True)
+
 def incoming_msg_processing(mac,msg):
     
         global upper_tank_percentage
@@ -197,12 +201,22 @@ def incoming_msg_processing(mac,msg):
                  _thread.start_new_thread(send_tanks_info, ())                       
             elif msg == "pump_on":
                 turn_on_pump()
+                outgoing_msg_processing()
             elif msg == "pump_off":
-                turn_off_pump()                
+                turn_off_pump()
+                outgoing_msg_processing()
             elif msg == "auto_on":
                 pump_auto_flag = True
+                f = open('auto_flag.txt', 'w') #store the auto_flag value
+                f.write('True')
+                f.close()
+                outgoing_msg_processing()
             elif msg == "auto_off":
                 pump_auto_flag = False
+                f = open('auto_flag.txt', 'w') #store the auto_flag value
+                f.write('False')
+                f.close()
+                outgoing_msg_processing()
             else:
                 pass 
         else:
@@ -227,7 +241,16 @@ def initialize_espnow():
 
 #main program body    
 try:
-    pump_auto_flag = True
+    
+    f = open('auto_flag.txt') #read the stored state of the pump_auto_flag
+    content= f.read().strip()   
+    f.close()
+    # Convert content to boolean
+    if content == 'True':
+        pump_auto_flag = True
+    else:
+        pump_auto_flag = False
+                
     turn_off_pump() #make sure the pump turns off on a reboot
     
         #if the machine is powered off and on check for an updated software version
