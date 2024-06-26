@@ -15,9 +15,9 @@ reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
 display_awake_interval = 5 #match to sleep time on display
-sensor_send_interval = 10  # seconds
-pump_check_interval = 1 # minutes
-pump_run_time = 1 #minutes per cycle
+sensor_send_interval = 20  # seconds
+pump_check_interval = 30 # minutes
+pump_run_time = 20 #minutes per cycle
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
 pump_cycle_limiter = time.time()
 pump_cycle_count = 0
@@ -32,7 +32,8 @@ battery_voltage = 0 #initialize before receiving an ESP-NOW message
 sensor_signal = 0  #initialize before receiving an ESP-NOW message
 temperature = 0 #initialize before receiving an ESP-NOW message
 humidity = 0 #initialize before receiving an ESP-NOW message
-upper_tank_receive_timestamp = time.time()
+upper_tank_receive_timestamp = time.time() # track how old the last sensor reading is
+last_temperature_update = time.time()  # track the last temperature update time
 
 #set up the AHT20 temp sensor and power it with Pin 23
 pin_aht20power = machine.Pin(23, mode=machine.Pin.OUT, value=1)
@@ -51,9 +52,12 @@ def reboot(delay = reboot_delay):
     machine.reset()
     
 def update_temperature_data():
-    global temperature, humidity
-    temperature = round(aht20.temperature, 1) - 3 #calibrate for temp
-    humidity = round(aht20.relative_humidity)
+    global temperature, humidity, last_temperature_update
+    current_time = time.time()
+    if current_time - last_temperature_update >= 600:  # Update every 10 minutes
+        temperature = round(aht20.temperature, 1) - 3  # calibrate for temp
+        humidity = round(aht20.relative_humidity)
+        last_temperature_update = current_time
 
 def read_tank_percentage():  # Read the local tank sensor
     try:
@@ -284,3 +288,5 @@ except KeyboardInterrupt as err:
 except Exception as err:
     print ('Error during execution:', err)
     reboot()
+
+
