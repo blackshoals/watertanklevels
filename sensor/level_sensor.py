@@ -1,4 +1,4 @@
-#Water Tank Sensor V2
+#Water Tank Sensor V3
 
 import time
 import network
@@ -11,12 +11,17 @@ from WIFI_CONFIG import SSID, PASSWORD
 
 reboot_delay = 5  # seconds
 cycle_time = 60  # minutes
-recharge_sleep = 2 #days
+recharge_sleep = 1 #days
 controller_mac = b'\xb0\xb2\x1c\x50\xb2\xb0'  # MAC address of peer1's wifi interface
 tank_offset = 5  # space between water surface when full and sensor in cm
 tank_height = 60  # total height from bottom to sensor in cm
 
-sensor = A02YYUW()  # Initialize sensor object once
+# Initialize sensor object once
+sensor = A02YYUW()
+# Initialize the battery pins
+adc_pin = machine.Pin(34, mode=machine.Pin.IN)
+adc = machine.ADC(adc_pin)
+adc.atten(machine.ADC.ATTN_11DB)
 
 def reboot(delay=reboot_delay):
     print(f'Rebooting device in {delay} seconds (Ctrl-C to escape).')
@@ -40,12 +45,9 @@ def read_tank_percentage():
 
 def read_battery_voltage():
     calib_factor = 1 / 563
-    adc_pin = machine.Pin(34, mode=machine.Pin.IN)
-    adc = machine.ADC(adc_pin)
-    adc.atten(machine.ADC.ATTN_11DB)
     raw = adc.read()
     battery_voltage = raw * calib_factor
-    battery_voltage = int(((battery_voltage - 3.3) / (4.2 - 3.3)) * 100)
+    battery_voltage = int(((battery_voltage - 3.2) / (4.2 - 3.2)) * 100)
     return battery_voltage
 
 def initialize_espnow():
@@ -78,7 +80,17 @@ try:
     if esp_now is None:
         reboot()
 
+    # Initial read and send
+    upper_tank_percentage = read_tank_percentage()
+    battery_voltage = read_battery_voltage()
+
+    if upper_tank_percentage is not None:
+        send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
+        esp_now.send(controller_mac, send_message, True)
+        print("Sent Upper Tank:", upper_tank_percentage, "% Battery:", battery_voltage, "%")
+
     while True:
+        # Read and send periodically
         upper_tank_percentage = read_tank_percentage()
         battery_voltage = read_battery_voltage()
 
@@ -91,7 +103,7 @@ try:
             esp_now.send(controller_mac, send_message, True)
             print("Sent Upper Tank:", upper_tank_percentage, "% Battery:", battery_voltage, "%")
 
-        machine.deepsleep(cycle_time *60 * 1000)
+        machine.deepsleep(cycle_time * 60 * 1000)
 
 except KeyboardInterrupt as err:
     raise err  # Use Ctrl-C to exit to MicroPython REPL
