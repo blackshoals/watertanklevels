@@ -321,7 +321,7 @@ void loop()
   }
   lastButtonState14 = currentButtonState14;
 
-    if (millis() - startTime >= 300000) // If 5 minutes has passed
+    if (millis() - startTime >= 180000) // If 3 minutes has passed
   { 
     
     //Now sleep the display
