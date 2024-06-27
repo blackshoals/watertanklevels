@@ -211,7 +211,7 @@ def check_for_update():
 
     print('Checking for updates...')
     firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
-    ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
+    ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
     ota_updater.download_and_install_update_if_available()
 
 
