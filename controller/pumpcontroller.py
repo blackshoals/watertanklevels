@@ -1,8 +1,8 @@
-#Pump Controller V2
+#Pump Controller V3
 
 from a02yyuw import A02YYUW
 import time
-import _thread
+import asyncio
 import network
 import espnow
 import machine
@@ -14,9 +14,9 @@ from WIFI_CONFIG import SSID, PASSWORD
 reboot_delay = 5  # seconds
 display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
-display_awake_interval = 5 #match to sleep time on display
-sensor_send_interval = 20  # seconds
-pump_check_interval = 30 # minutes
+display_awake_interval = 3 #match to sleep time on display
+sensor_send_interval = 15  # seconds
+pump_check_interval = 60 # minutes
 pump_run_time = 20 #minutes per cycle
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
 pump_cycle_limiter = time.time()
@@ -51,13 +51,12 @@ def reboot(delay = reboot_delay):
     time.sleep(delay)
     machine.reset()
     
-def update_temperature_data():
-    global temperature, humidity, last_temperature_update
-    current_time = time.time()
-    if current_time - last_temperature_update >= 600:  # Update every 10 minutes
+async def update_temperature_data():
+    global temperature, humidity
+    while True:
         temperature = round(aht20.temperature, 1) - 3  # calibrate for temp
         humidity = round(aht20.relative_humidity)
-        last_temperature_update = current_time
+        await asyncio.sleep(10)
 
 def read_tank_percentage():  # Read the local tank sensor
     try:
@@ -80,14 +79,16 @@ def read_tank_percentage():  # Read the local tank sensor
         return None
 
 # Start a new thread for sending tank info every 15 seconds for 5 minutes
-def send_tanks_info():
-        
+async def send_tanks_info():        
         try:
-            for i in range((display_awake_interval*60)/sensor_send_interval):
-                
-                print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity) 
-                outgoing_msg_processing()
-                time.sleep(sensor_send_interval)
+            while True:
+                for i in range((display_awake_interval*60)/sensor_send_interval):
+                    
+                    print(upper_tank_percentage, lower_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state, temperature, humidity) 
+                    outgoing_msg_processing()
+                    await asyncio.sleep(sensor_send_interval)
+            
+                await asyncio.Event().wait()
                                 
         except Exception as err:
             print('Error sending data:', err)
@@ -112,13 +113,14 @@ def turn_off_pump():
 def get_pump_status():
     return pump_state
             
-def check_pump():            # Check the temperature and tank levels and start the pump if necessary
+async def check_pump():            # Check the temperature and tank levels and start the pump if necessary
         
-    global pump_cycle_count
+    global pump_cycle_count, pump_cycle_limiter, lower_tank_percentage
     
     try:           
         if (time.time() - pump_cycle_limiter) >= (24 * 60 * 60): #reset the pump cycle counter every 24 hours
             pump_cycle_count = 0
+            pump_cycle_limiter = time.time()
         else:
             pass
                
@@ -126,7 +128,7 @@ def check_pump():            # Check the temperature and tank levels and start t
                 
             if pump_auto_flag:
                 print("Pump auto mode is on")
-                print("Checking the pump conditions")
+                print("Checking pump conditions")
                 
                 if ((time.time() - upper_tank_receive_timestamp) <= (2 * 60 * 60)
                 and (pump_cycle_count < pump_daily_cycles)
@@ -146,7 +148,7 @@ def check_pump():            # Check the temperature and tank levels and start t
                         turn_on_pump()
                         outgoing_msg_processing()
                         print("Pump Relay On")
-                        time.sleep(pump_run_time*60)
+                        await asyncio.sleep(pump_run_time*60)
                         turn_off_pump()
                         outgoing_msg_processing()
                         print("Pump Relay Off")
@@ -156,26 +158,24 @@ def check_pump():            # Check the temperature and tank levels and start t
                     else:
                         pass
                 else:
-                    pass
+                    print("Pump has run the limit ", pump_cycle_count, " times in this 24 hour period. Temperature is: ",temperature) 
             else:
                  print("Pump Auto Mode is off")
             
-            time.sleep(pump_check_interval*60)
+            await asyncio.sleep(pump_check_interval*60)
             
     except Exception as err:
         print('Error checking the pump:', err)
         return None
         
-def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- keep short
+async def recv_cb(esp_now):  # Callback function to handle incoming ESP-NOW messages- keep short
 
     while True:  # Process all messages in the buffer
         mac, msg = esp_now.irecv(0)  # Non-blocking read
     
-        if mac is None:
-            return
-        # Assuming the message contains the new sensor value       
-        else:
-            incoming_msg_processing(mac,msg)
+        if mac is not None:
+            asyncio.create_task(incoming_msg_processing(mac, msg))
+        await asyncio.sleep(0.1)  # Yield to other tasks
 
 def outgoing_msg_processing():
     
@@ -188,7 +188,7 @@ def outgoing_msg_processing():
         send_message = bytearray(ustruct.pack('iiiibb',lower_tank_percentage, upper_tank_percentage, battery_voltage, sensor_signal, pump_auto_flag, pump_state ))
         esp_now.send(display_mac, send_message, True)
 
-def incoming_msg_processing(mac,msg):
+async def incoming_msg_processing(mac,msg):
     
         global upper_tank_percentage
         global battery_voltage
@@ -202,7 +202,7 @@ def incoming_msg_processing(mac,msg):
             msg =msg.split(b'\x00')[0].decode('utf-8')
             print("Message display ", msg)
             if msg == "get_sensors":
-                 _thread.start_new_thread(send_tanks_info, ())                       
+               asyncio.create_task(send_tanks_info())                      
             elif msg == "pump_on":
                 turn_on_pump()
                 outgoing_msg_processing()
@@ -243,50 +243,55 @@ def initialize_espnow():
         print('Error initializing ESP-NOW:', err)
         return None
 
-#main program body    
+async def main():    #main program body    
+    try:
+        # Create tasks for asynchronous functions
+        update_temp_task = asyncio.create_task(update_temperature_data())
+#        send_tanks_info_task = asyncio.create_task(send_tanks_info())
+        check_pump_task = asyncio.create_task(check_pump())
+
+        # Run the event loop
+#        await asyncio.gather(update_temp_task, send_tanks_info_task, check_pump_task)
+        await asyncio.gather(update_temp_task, check_pump_task)
+
+    except KeyboardInterrupt as err:
+        raise err #  use Ctrl-C to exit to micropython repl
+
+    except Exception as err:
+        print ('Error during execution:', err)
+        reboot()
+
+# Run the main coroutine
+
 try:
-    
-    f = open('auto_flag.txt') #read the stored state of the pump_auto_flag
-    content= f.read().strip()   
-    f.close()
-    # Convert content to boolean
-    if content == 'True':
-        pump_auto_flag = True
-    else:
-        pump_auto_flag = False
-                
-    turn_off_pump() #make sure the pump turns off on a reboot
-    
-        #if the machine is powered off and on check for an updated software version
-    if (machine.reset_cause() == 1):
-        print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
-        time.sleep(5)
-        #if the machine is powered off and on check for an updated software version
-        firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
-        ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
-        ota_updater.download_and_install_update_if_available()
-    else:
-           pass
-        
-    esp_now = initialize_espnow()
-    if esp_now is None:
-           reboot()
-    else:
-        pass
-
-    # Register the callback
-    esp_now.irq(recv_cb)
-        
-    #start a thread that checks the pump
-    _thread.start_new_thread(check_pump, ())
-
-    while True:
-        update_temperature_data()
-            
-except KeyboardInterrupt as err:
-    raise err #  use Ctrl-C to exit to micropython repl
+    with open('auto_flag.txt', 'r') as f:
+        content = f.read().strip()
+    pump_auto_flag = content == 'True'
 except Exception as err:
-    print ('Error during execution:', err)
-    reboot()
+    print("Error reading auto_flag.txt:", err)
+    pump_auto_flag = False
 
+            
+turn_off_pump() #make sure the pump turns off on a reboot
 
+    #if the machine is powered off and on check for an updated software version
+if (machine.reset_cause() == 1):
+    print ('you have 5 seconds to do Ctrl-C if you want to edit the program')
+    time.sleep(5)
+    #if the machine is powered off and on check for an updated software version
+    firmware_url = "https://github.com/blackshoals/watertanklevels/main/controller/"
+    ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
+    ota_updater.download_and_install_update_if_available()
+else:
+       pass
+    
+esp_now = initialize_espnow()
+if esp_now is None:
+       reboot()
+else:
+    pass
+
+# Register the callback
+asyncio.create_task(recv_cb(esp_now))
+
+asyncio.run(main())
