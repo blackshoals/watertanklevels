@@ -1,1 +1,1 @@
-import sensor
+import level_sensor
