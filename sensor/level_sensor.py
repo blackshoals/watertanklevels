@@ -44,10 +44,10 @@ def read_tank_percentage():
     return None
 
 def read_battery_voltage():
-    calib_factor = 1 / 563
+    calib_factor = 1 / 564
     raw = adc.read()
     battery_voltage = raw * calib_factor
-    battery_voltage = int(((battery_voltage - 3.2) / (4.2 - 3.2)) * 100)
+    battery_voltage = int(((battery_voltage - 3.2) / (4.17 - 3.2)) * 100)
     return battery_voltage
 
 def initialize_espnow():
