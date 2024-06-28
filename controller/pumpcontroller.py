@@ -1,4 +1,4 @@
-#Pump Controller V4
+#Pump Controller V5
 
 import time
 import asyncio
@@ -18,6 +18,8 @@ display_awake_interval = 3 #match to sleep time on display
 sensor_send_interval = 15  # seconds
 pump_check_interval = 60 # minutes
 pump_run_time = 20 #minutes per cycle
+max_continuous_run_time = 30 #minutes
+pump_cooldown_time = 15 #minutes
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
 pump_cycle_limiter = time.time()
 pump_cycle_count = 0
@@ -108,50 +110,65 @@ def get_pump_status():
     return pump_state
             
 async def check_pump():
-    # Check the temperature and tank levels and start the pump if necessary        
-    global pump_cycle_count, pump_cycle_limiter, lower_tank_percentage
+    #run the pump a set # of intervals per 24 hours if: auto flag is On, the temperature is above 5 deg
+    global pump_cycle_count, pump_cycle_limiter, lower_tank_percentage, last_pump_start_time, last_pump_stop_time
     
     while True:      
-        if (time.time() - pump_cycle_limiter) >= (24 * 60 * 60): #reset the pump cycle counter every 24 hours
+        current_time = time.time()
+        
+        # Reset daily cycle counter
+        if (current_time - pump_cycle_limiter) >= (24 * 60 * 60):
             pump_cycle_count = 0
-            pump_cycle_limiter = time.time()
-                               
+            pump_cycle_limiter = current_time
+        
         if pump_auto_flag:
             print("Pump auto mode is on")
             print("Checking pump conditions")
-                
-            if ((time.time() - upper_tank_receive_timestamp) <= (2 * 60 * 60)
+            
+            if ((current_time - upper_tank_receive_timestamp) <= (3 * 60 * 60)
                 and (pump_cycle_count < pump_daily_cycles)
-                and (temperature >= 5)):
-                    
-                lower_tank_percentage = read_tank_percentage() # read connected water level sensor
+                and (temperature >= 5)
+                and (current_time - last_pump_stop_time) >= (pump_cooldown_time * 60):
+                
+                lower_tank_percentage = read_tank_percentage()
                 
                 if ((upper_tank_percentage < upper_tank_min)
                     and (upper_tank_percentage != 0)
                     and (lower_tank_percentage > lower_tank_min)):
 
-                   #start the pump at a certain interval
-                   #check that the tank reading is less < 2 hours old
-                   # limit pumping to a certain number of cycles per 24 hours
-
                     print("Starting pump")           
                     turn_on_pump()
+                    last_pump_start_time = current_time
                     outgoing_msg_processing()
                     print("Pump Relay On")
-                    await asyncio.sleep(pump_run_time*60)
+                    
+                    # Run pump with safety checks
+                    while (current_time - last_pump_start_time) < (pump_run_time * 60):
+                        await asyncio.sleep(60)  # Check every minute
+                        current_time = time.time()
+                        if (current_time - last_pump_start_time) >= (max_continuous_run_time * 60):
+                            print("Maximum continuous run time reached. Stopping pump.")
+                            break
+                        
+                        # Recheck conditions
+                        lower_tank_percentage = read_tank_percentage()
+                        if lower_tank_percentage <= lower_tank_min:
+                            print("Lower tank level too low. Stopping pump.")
+                            break
+                    
                     turn_off_pump()
+                    last_pump_stop_time = time.time()
                     outgoing_msg_processing()
                     print("Pump Relay Off")
                     pump_cycle_count += 1
-                    print("Pump_cycle_count ",pump_cycle_count)
+                    print("Pump_cycle_count ", pump_cycle_count)
                        
             else:
-                print("Pump has run the limit ", pump_cycle_count, " times in this 24 hour period. Temperature is: ",temperature) 
+                print(f"Pump not started. Cycles: {pump_cycle_count}, Temperature: {temperature}")
         else:
-             print("Pump Auto Mode is off")
+            print("Pump Auto Mode is off")
             
-        await asyncio.sleep(pump_check_interval*60)
-
+        await asyncio.sleep(pump_check_interval * 60)
         
 async def recv_cb(esp_now):
     # Callback function to handle incoming ESP-NOW messages- keep short
@@ -214,33 +231,47 @@ def check_for_update():
     ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "pumpcontroller.py")
     ota_updater.download_and_install_update_if_available()
 
-
 def initialize_espnow():
-            #establish ESP-NOW
-    try:
-        print('Initializing...')
-        sta = network.WLAN(network.STA_IF) #set station mode
-        sta.active(True)
+    #establish ESP-NOW
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            print('Initializing ESP-NOW (attempt %d/%d)...', attempt + 1, max_retries)
+            sta = network.WLAN(network.STA_IF)
+            sta.active(True)
 
-        esp_now = espnow.ESPNow()
-        esp_now.active(True)
-        esp_now.add_peer(display_mac)
+            esp_now = espnow.ESPNow()
+            esp_now.active(True)
+            esp_now.add_peer(display_mac)
 
-        return esp_now
-    
-    except Exception as err:
-        print('Error initializing ESP-NOW:', err)
-        return None
+            return esp_now
+        
+        except Exception as err:
+            print('Error initializing ESP-NOW: %s', err)
+            if attempt < max_retries - 1:
+                print('Retrying in 5 seconds...')
+                time.sleep(5)
+            else:
+                print('Failed to initialize ESP-NOW after %d attempts', max_retries)
+                return None
+
+async def feed_watchdog():
+   # reset the system if it become unresponsive with a watchdog
+    watchdog = WDT(timeout=600000)  # 10 minutes timeout
+    while True:
+        watchdog.feed()
+        await asyncio.sleep(60)  # Feed every minute
 
 async def main():
-    #main program body    
+    # main program body    
     try:
         # Create tasks for asynchronous functions
         update_temp_task = asyncio.create_task(update_temperature_data())
         check_pump_task = asyncio.create_task(check_pump())
+        watchdog_task = asyncio.create_task(feed_watchdog())
 
         # Run the event loop
-        await asyncio.gather(update_temp_task, check_pump_task)
+        await asyncio.gather(update_temp_task, check_pump_task, watchdog_task)
 
     except KeyboardInterrupt as err:
         raise err #  use Ctrl-C to exit to micropython repl
