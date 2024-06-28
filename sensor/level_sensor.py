@@ -1,4 +1,4 @@
-#Water Tank Sensor V3
+#Water Tank Sensor V4
 
 import time
 import network
@@ -51,19 +51,28 @@ def read_battery_voltage():
     return battery_voltage
 
 def initialize_espnow():
-    try:
-        print('Initializing...')
-        sta = network.WLAN(network.STA_IF)  # Set station mode
-        sta.active(True)
+    #establish ESP-NOW
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            print('Initializing ESP-NOW (attempt %d/%d)...', attempt + 1, max_retries)
+            sta = network.WLAN(network.STA_IF)
+            sta.active(True)
 
-        # Enable ESP-NOW
-        e = espnow.ESPNow()
-        e.active(True)
-        e.add_peer(controller_mac)  # Add controller as a receiver
-        return e
-    except Exception as err:
-        print('Error initializing ESP-NOW:', err)
-        return None
+            esp_now = espnow.ESPNow()
+            esp_now.active(True)
+            esp_now.add_peer(controller_mac)
+
+            return esp_now
+        
+        except Exception as err:
+            print('Error initializing ESP-NOW: %s', err)
+            if attempt < max_retries - 1:
+                print('Retrying in 5 seconds...')
+                time.sleep(5)
+            else:
+                print('Failed to initialize ESP-NOW after %d attempts', max_retries)
+                return None
 
 def check_for_update():
     if machine.reset_cause() == machine.DEEPSLEEP_RESET:
@@ -74,39 +83,43 @@ def check_for_update():
     ota_updater = OTAUpdater(SSID, PASSWORD, firmware_url, "level_sensor.py")
     ota_updater.download_and_install_update_if_available()
 
-try:
-    check_for_update()
-    esp_now = initialize_espnow()
-    if esp_now is None:
-        reboot()
-
-    # Initial read and send
-    upper_tank_percentage = read_tank_percentage()
-    battery_voltage = read_battery_voltage()
-
-    if upper_tank_percentage is not None:
-        send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
-        esp_now.send(controller_mac, send_message, True)
-        print("Sent Upper Tank:", upper_tank_percentage, "% Battery:", battery_voltage, "%")
-
-    while True:
-        # Read and send periodically
+def main():
+    try:
+        check_for_update()
+        esp_now = initialize_espnow()
+        if esp_now is None:
+            reboot()
+    
+        # Initial read and send
         upper_tank_percentage = read_tank_percentage()
         battery_voltage = read_battery_voltage()
-
-        if battery_voltage < 20:
-            print("Low battery voltage, sleeping...")
-            machine.deepsleep(recharge_sleep * 24 * 60 * 60 * 1000)  # Sleep to recharge
-
+    
         if upper_tank_percentage is not None:
             send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
             esp_now.send(controller_mac, send_message, True)
             print("Sent Upper Tank:", upper_tank_percentage, "% Battery:", battery_voltage, "%")
+    
+        while True:
+            # Read and send periodically
+            upper_tank_percentage = read_tank_percentage()
+            battery_voltage = read_battery_voltage()
+    
+            if battery_voltage < 20:
+                print("Low battery voltage, sleeping...")
+                machine.deepsleep(recharge_sleep * 24 * 60 * 60 * 1000)  # Sleep to recharge
+    
+            if upper_tank_percentage is not None:
+                send_message = ustruct.pack('ii', upper_tank_percentage, battery_voltage)
+                esp_now.send(controller_mac, send_message, True)
+                print("Sent Upper Tank:", upper_tank_percentage, "% Battery:", battery_voltage, "%")
+    
+            machine.deepsleep(cycle_time * 60 * 1000)
+    
+    except KeyboardInterrupt as err:
+        raise err  # Use Ctrl-C to exit to MicroPython REPL
+    except Exception as err:
+        print('Error during execution:', err)
+        reboot()
 
-        machine.deepsleep(cycle_time * 60 * 1000)
-
-except KeyboardInterrupt as err:
-    raise err  # Use Ctrl-C to exit to MicroPython REPL
-except Exception as err:
-    print('Error during execution:', err)
-    reboot()
+if __name__ == "__main__":
+    main()
