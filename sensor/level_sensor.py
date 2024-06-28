@@ -55,7 +55,7 @@ def initialize_espnow():
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            print('Initializing ESP-NOW (attempt %d/%d)...', attempt + 1, max_retries)
+            print('Initializing ESP-NOW :', attempt + 1, " of ", max_retries, "retries")
             sta = network.WLAN(network.STA_IF)
             sta.active(True)
 
