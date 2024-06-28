@@ -6,8 +6,9 @@ import network
 import espnow
 import machine
 import ustruct
-from a02yyuw import A02YYUW
 import ahtx0
+from a02yyuw import A02YYUW
+from machine import WDT
 from ota import OTAUpdater
 from WIFI_CONFIG import SSID, PASSWORD
 
@@ -113,6 +114,9 @@ async def check_pump():
     #run the pump a set # of intervals per 24 hours if: auto flag is On, the temperature is above 5 deg
     global pump_cycle_count, pump_cycle_limiter, lower_tank_percentage, last_pump_start_time, last_pump_stop_time
     
+    last_pump_start_time = 0
+    last_pump_stop_time = 0
+    
     while True:      
         current_time = time.time()
         
@@ -128,7 +132,7 @@ async def check_pump():
             if ((current_time - upper_tank_receive_timestamp) <= (3 * 60 * 60)
                 and (pump_cycle_count < pump_daily_cycles)
                 and (temperature >= 5)
-                and (current_time - last_pump_stop_time) >= (pump_cooldown_time * 60):
+                and (current_time - last_pump_stop_time) >= (pump_cooldown_time * 60)):
                 
                 lower_tank_percentage = read_tank_percentage()
                 
@@ -236,7 +240,7 @@ def initialize_espnow():
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            print('Initializing ESP-NOW (attempt %d/%d)...', attempt + 1, max_retries)
+            print('Initializing ESP-NOW: ', attempt + 1," of ", max_retries, "retries")
             sta = network.WLAN(network.STA_IF)
             sta.active(True)
 
@@ -304,5 +308,6 @@ if esp_now is None:
 asyncio.create_task(recv_cb(esp_now))
 
 asyncio.run(main())
+
 
 
