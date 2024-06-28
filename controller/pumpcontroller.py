@@ -243,6 +243,7 @@ def initialize_espnow():
             esp_now = espnow.ESPNow()
             esp_now.active(True)
             esp_now.add_peer(display_mac)
+            esp_now.add_peer(sensor_mac)
 
             return esp_now
         
