@@ -1,4 +1,4 @@
-#Pump Controller V6
+#Pump Controller V7
 
 import time
 import asyncio
@@ -17,8 +17,8 @@ display_mac = b'\x3c\x84\x27\xc0\xfa\x58'
 sensor_mac = b'\xb0\xb2\x1c\x50\xad\x20'
 display_awake_interval = 3 #match to sleep time on display
 sensor_send_interval = 15  # seconds
-pump_check_interval = 5 # minutes
-pump_run_time = 5 #minutes per cycle
+pump_check_interval = 60 # minutes
+pump_run_time = 15 #minutes per cycle
 max_continuous_run_time = 30 #minutes
 pump_cooldown_time = 15 #minutes
 pump_daily_cycles = 2 #how many time cycles can run in 24 hours
