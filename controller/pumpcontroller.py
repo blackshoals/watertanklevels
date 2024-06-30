@@ -1,4 +1,4 @@
-#Pump Controller V7
+#Pump Controller V8
 
 import time
 import asyncio
@@ -98,7 +98,8 @@ def turn_on_pump():
     # Turn the pump relay on
     global pump_state
     pump_state = True
-    pump_relay.value(1)  
+    pump_relay.value(1)
+    time.sleep_ms(200)  # Add a short delay after turning on the pump
 
 def turn_off_pump():
     # Turn the pump relay off
