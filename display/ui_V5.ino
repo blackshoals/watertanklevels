@@ -18,7 +18,7 @@ uint8_t receiverAdd[] = {0xB0, 0xB2, 0x1C, 0x50, 0xB2, 0xB0};
 esp_now_peer_info_t peerInfo;
 
 unsigned long targetTime = 0;
-int v1 = 0; //display's battery voltage
+int v1 = 4300; //display's battery voltage
 int upper_tank_percentage = 0; // show empty until a sensor reading comes in
 int lower_tank_percentage = 0;
 int battery_voltage=0;
@@ -121,7 +121,7 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len)
 
 void setup()
 {
-    Serial.begin( 115200 ); /* prepare for possible serial debug */
+    //Serial.begin( 115200 ); /* prepare for possible serial debug */
 
     pinMode(PIN_POWER_ON, OUTPUT);   //triggers the LCD backlight, and enables battery power
     digitalWrite(PIN_POWER_ON, HIGH);  //enable battery power
@@ -132,8 +132,8 @@ void setup()
     String LVGL_Arduino = "Hello Arduino! ";
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
-    Serial.println( LVGL_Arduino );
-    Serial.println( "I am LVGL_Arduino" );
+    //Serial.println( LVGL_Arduino );
+    //Serial.println( "I am LVGL_Arduino" );
 
     lv_init();
 
@@ -175,11 +175,11 @@ void setup()
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
 
-    delay(100);
+    delay(1000);
 
     esp_now_send(receiverAdd, (uint8_t *) &sensorCall, sizeof(sensorCall)); // action
 
-    Serial.println( "Setup done" );    
+    //Serial.println( "Setup done" );    
 }
 
 void percentDisplayBattery()
@@ -192,7 +192,9 @@ void percentDisplayBattery()
         uint32_t raw = analogRead(PIN_BAT_VOLT);
         uint32_t v1 = esp_adc_cal_raw_to_voltage(raw, &adc_chars) * 2; //The partial pressure is one-half
 
-        display_battery_percentage = map(v1, 3400, 4400, 0, 100);
+        //Serial.println(v1);
+
+        display_battery_percentage = map(v1, 3300, 4300, 0, 100);
 
         // If the battery is not connected, the ADC detects the charging voltage of TP4056, which is inaccurate.
         // Can judge whether it is greater than 4300mV. If it is less than this value, it means the battery exists.
@@ -321,7 +323,7 @@ void loop()
   }
   lastButtonState14 = currentButtonState14;
 
-    if (millis() - startTime >= 180000) // If 3 minutes has passed
+    if (millis() - startTime >= 180000 || v1<= 3400) // If 3 minutes has passed or the battery is low deep sleep
   { 
     
     //Now sleep the display
